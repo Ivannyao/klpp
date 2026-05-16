@@ -740,7 +740,8 @@ function endKlppRoom(room, showScore){
         return {
           clientId: player.clientId,
           nickname: player.nickname,
-          score: room.scoreboard[player.clientId] || 0
+          score: room.scoreboard[player.clientId] || 0,
+        isDoneAnswering: room.state === "answer" && klppViewerAssignments(room, player.clientId).length > 0 && klppViewerAssignments(room, player.clientId).filter(function(item){ return item.status !== "pending"; }).length === klppViewerAssignments(room, player.clientId).length
         };
       }).sort(function(a, b){ return b.score - a.score || a.nickname.localeCompare(b.nickname, "ru"); })
     };
@@ -888,16 +889,7 @@ function serializeKlppRoom(room, req){
   const viewerClientId = String(requestUrl(req).searchParams.get("clientId") || "").trim();
   const viewerPlayer = players.find(function(player){ return player.clientId === viewerClientId; }) || null;
   const nameMap = new Map(players.map(function(player){ return [player.clientId, player.nickname]; }));
-  const scoreboard = players.map(function(player){
-    return {
-      clientId: player.clientId,
-      nickname: player.nickname,
-      avatar: clone(player.avatar || null),
-      score: room.scoreboard[player.clientId] || 0,
-      isLeader: player.clientId === leaderClientId
-    };
-  }).sort(function(a, b){ return b.score - a.score || a.nickname.localeCompare(b.nickname, "ru"); });
-
+  
   const pausedState = room.state === "paused" && room.pauseMeta ? String(room.pauseMeta.state || "") : "";
   const visibleState = room.state === "paused" && room.pauseMeta ? String(room.pauseMeta.state || "lobby") : room.state;
   const hostControls = {
@@ -935,6 +927,9 @@ function serializeKlppRoom(room, req){
     isLastRound: (room.roundIndex || 0) >= room.settings.roundCount,
     activeModifiers: klppActiveModifiersForRound(room),
     players: players.map(function(player, index){
+      const playerAssignments = klppViewerAssignments(room, player.clientId);
+      const playerAnsweredCount = playerAssignments.filter(function(item){ return item.status !== "pending"; }).length;
+      const isDoneAnswering = room.state === "answer" && playerAssignments.length > 0 && playerAnsweredCount === playerAssignments.length;
       return {
         clientId: player.clientId,
         nickname: player.nickname,
@@ -943,7 +938,8 @@ function serializeKlppRoom(room, req){
         isLeader: player.clientId === leaderClientId,
         isLastJoined: player.clientId === lastJoinedClientId,
         order: index,
-        score: room.scoreboard[player.clientId] || 0
+        score: room.scoreboard[player.clientId] || 0,
+        isDoneAnswering: room.state === "answer" && klppViewerAssignments(room, player.clientId).length > 0 && klppViewerAssignments(room, player.clientId).filter(function(item){ return item.status !== "pending"; }).length === klppViewerAssignments(room, player.clientId).length
       };
     }),
     scoreboard: scoreboard,

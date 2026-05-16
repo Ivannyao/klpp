@@ -677,7 +677,7 @@
 
   function renderHost(snap){
     if(!snap) return;
-    var layout = getHostLayout();
+    var layout = getHostLayout(snap);
     els.hostRoomCode.textContent = snap.id;
     els.hostPlayersCount.textContent = formatPlayersCount(snap.players.length);
     var qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=" + encodeURIComponent(snap.joinUrl);
@@ -892,15 +892,19 @@
         node = document.createElement("div");
         node.className = "host-player entering" + (trashSpot ? " trash-player" : "");
         node.setAttribute("data-client-id", player.clientId);
-        var startX = pos.x + (Math.random() * 26 - 13);
+        var finalY = pos.y;
+        if (snap.state === "answer" && player.isDoneAnswering) {
+          finalY = -25;
+        }
+
         node.style.setProperty("--start-x", startX + "%");
         node.style.setProperty("--start-y", "-15%");
         node.style.setProperty("--target-x", pos.x + "%");
-        node.style.setProperty("--target-y", pos.y + "%");
+        node.style.setProperty("--target-y", finalY + "%");
         node.style.setProperty("--target-scale", pos.scale || 1);
-        node.style.setProperty("--target-z", Math.round(pos.y));
+        node.style.setProperty("--target-z", Math.round(finalY));
         node.style.left = pos.x + "%";
-        node.style.top = pos.y + "%";
+        node.style.top = finalY + "%";
         node.innerHTML =
           (player.isLeader ? '<div class="legend-badge">OWNER</div>' : "") +
           renderAvatarHtml(player.avatar, "host") +
@@ -913,12 +917,17 @@
         node.addEventListener("animationend", clearEntering);
       } else {
         if(!node.classList.contains("entering") && !node.classList.contains("launching")){
+          var finalY = pos.y;
+          if (snap.state === "answer" && player.isDoneAnswering) {
+            finalY = -25;
+          }
+          
           node.style.setProperty("--target-x", pos.x + "%");
-          node.style.setProperty("--target-y", pos.y + "%");
+          node.style.setProperty("--target-y", finalY + "%");
           node.style.setProperty("--target-scale", pos.scale || 1);
-          node.style.setProperty("--target-z", Math.round(pos.y));
+          node.style.setProperty("--target-z", Math.round(finalY));
           node.style.left = pos.x + "%";
-          node.style.top = pos.y + "%";
+          node.style.top = finalY + "%";
         }
         node.classList.toggle("trash-player", trashSpot);
         var tag = node.querySelector(".player-tag");
@@ -1295,7 +1304,7 @@
 
   /* ───── Helpers ───── */
 
-  function getHostLayout(){
+  function getHostLayout(snap){
     var width = window.innerWidth;
     var isMobile = width <= 760;
     
@@ -1309,6 +1318,16 @@
       {x: 55, y: 56, scale: 0.85}, {x: 10, y: 65, scale: 0.95}, {x: 90, y: 65, scale: 0.95},
       {x: 35, y: 82, scale: 1.15}, {x: 65, y: 82, scale: 1.15}, {x: 15, y: 84, scale: 1.2}
     ];
+
+    if(snap && snap.state === "answer") {
+      var playerCount = Math.max(1, (snap.players && snap.players.length) || 1);
+      var totalWidth = playerCount * 13;
+      var startX = 50 - (totalWidth / 2) + 6.5;
+      spots = [];
+      for(var i = 0; i < playerCount; i++){
+        spots.push({x: startX + i * 13, y: 84, scale: 0.95});
+      }
+    }
 
     return {
       fieldSpots: spots,
