@@ -38,3 +38,6 @@ cloudflared.exe
 
 # Legacy assets (contained Mapbox secret in bundled JS)
 public/scratchmap/
+
+# Per-user Claude Code overrides (auto-push identity, etc)
+.claude/settings.local.json
