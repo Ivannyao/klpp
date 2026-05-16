@@ -776,7 +776,8 @@
         wave.style.transition = "none";
         setTimeout(() => {
           wave.style.transition = "top 1.2s cubic-bezier(0.4, 0, 0.2, 1)";
-          wave.classList.add("active");
+          wave.style.top = "";
+          wave.style.top = ""; wave.classList.add("active");
         }, 50);
       }
     }
