@@ -33,8 +33,9 @@ build/
 .tmp/
 *.tmp
 
-# Tunnel helper
+# Tunnel helper / random Windows binaries
 cloudflared.exe
+*.exe
 
 # Legacy assets (contained Mapbox secret in bundled JS)
 public/scratchmap/
