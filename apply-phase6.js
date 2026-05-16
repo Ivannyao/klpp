@@ -1,6 +1,8 @@
 const fs = require('fs');
+
 let html = fs.readFileSync('public/klpp.html', 'utf8');
-const newCss = \
+
+const newCss = `
 .curtain-left, .curtain-right { position: fixed; top: 0; bottom: 0; width: 20vw; background: repeating-linear-gradient(to right, #800000 0%, #b30000 5%, #800000 10%); box-shadow: 0 0 30px rgba(0,0,0,0.9); z-index: 15; transition: transform 1.5s cubic-bezier(0.65, 0, 0.35, 1); pointer-events: none; }
 .curtain-left { left: 0; border-right: 8px solid #400; border-bottom-right-radius: 60px; transform: translateX(-100%); }
 .curtain-right { right: 0; border-left: 8px solid #400; border-bottom-left-radius: 60px; transform: translateX(100%); }
@@ -30,19 +32,28 @@ const newCss = \
 .host-round-transition__label { font-family: "Arial Black", sans-serif; text-shadow: 4px 4px 0 #000; color: #ffcc00; }
 .host-round-transition__number { font-family: "Arial Black", sans-serif; text-shadow: 8px 8px 0 #000; color: #fff; }
 @keyframes zoomStamp { 0% { transform: scale(3); opacity: 0; } 50% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-\;
-html = html.replace('</style>', newCss + '\\n</style>');
-html = html.replace('<div class=\"wave-transition\" id=\"hostWaveTransition\"></div>', '<div class=\"wave-transition\" id=\"hostWaveTransition\"></div>\\n        <div class=\"curtain-left\"></div>\\n        <div class=\"curtain-right\"></div>\\n        <div class=\"curtain-top\"></div>');
-fs.writeFileSync('public/klpp.html', html);
+`;
+
+if (!html.includes('.podium-container')) {
+  html = html.replace('</style>', newCss + '\n</style>');
+  html = html.replace('<div class="wave-transition" id="hostWaveTransition"></div>', 
+    '<div class="wave-transition" id="hostWaveTransition"></div>\n' +
+    '        <div class="curtain-left"></div>\n' +
+    '        <div class="curtain-right"></div>\n' +
+    '        <div class="curtain-top"></div>'
+  );
+  fs.writeFileSync('public/klpp.html', html);
+}
 
 let js = fs.readFileSync('public/klpp-client.js', 'utf8');
-const newScoreboardFn = \
+
+const newScoreboardFn = `
   function renderHostScoreboard(scoreboard, snap, isFinal){
     if(!scoreboard || !scoreboard.length) return "";
     var sorted = scoreboard.slice().sort(function(a,b){ return b.score - a.score; });
     var top3 = sorted.slice(0, 3);
     var rest = sorted.slice(3);
-    var podiumHtml = '<div class=\"podium-container\">';
+    var podiumHtml = '<div class="podium-container">';
     var displayOrder = [1, 0, 2];
     displayOrder.forEach(function(idx) {
       if(top3[idx]) {
@@ -50,24 +61,28 @@ const newScoreboardFn = \
         var player = lookupPlayer(snap, item.clientId);
         var avatarHtml = renderAvatarHtml(player && player.avatar, "md");
         var placeClass = idx === 0 ? "first" : (idx === 1 ? "second" : "third");
-        podiumHtml += '<div class=\"podium-spot ' + placeClass + '\">' +
-          '<div class=\"podium-name\">' + escapeHtml(item.nickname) + '</div>' +
-          '<div class=\"podium-avatar\">' + avatarHtml + '</div>' +
-          '<div class=\"podium-block\">' + (idx + 1) + '<div class=\"podium-score\">' + (item.score || 0) + '</div></div>' +
+        podiumHtml += '<div class="podium-spot ' + placeClass + '">' +
+          '<div class="podium-name">' + escapeHtml(item.nickname) + '</div>' +
+          '<div class="podium-avatar">' + avatarHtml + '</div>' +
+          '<div class="podium-block">' + (idx + 1) + '<div class="podium-score">' + (item.score || 0) + '</div></div>' +
         '</div>';
       }
     });
-    podiumHtml += '</div><div class=\"scoreboard-list\">';
+    podiumHtml += '</div><div class="scoreboard-list">';
     rest.forEach(function(item) {
       var player = lookupPlayer(snap, item.clientId);
       var avatarHtml = renderAvatarHtml(player && player.avatar, "sm");
-      podiumHtml += '<div class=\"score-row\">' + avatarHtml + '<span class=\"score-name\">' + escapeHtml(item.nickname) + '</span><span class=\"score-value\">' + (item.score || 0) + '</span></div>';
+      podiumHtml += '<div class="score-row">' + avatarHtml + '<span class="score-name">' + escapeHtml(item.nickname) + '</span><span class="score-value">' + (item.score || 0) + '</span></div>';
     });
     return podiumHtml + '</div>';
   }
-\;
-js = js.replace(/function renderHostScoreboard[\\s\\S]*?return '<div class=\"stage-scoreboard\">' \\+ rows \\+ \"<\\/div>\";\\s*\\}/, newScoreboardFn.trim());
-const stateChecks = \
+`;
+
+if (!js.includes('function renderHostScoreboard(scoreboard, snap, isFinal){\n    if(!scoreboard || !scoreboard.length) return "";\n    var sorted')) {
+  js = js.replace(/function renderHostScoreboard[\s\S]*?return '<div class="stage-scoreboard">' \+ rows \+ "<\/div>";\s*\}/, newScoreboardFn.trim());
+}
+
+const stateChecks = `
     var isScoreboard = state === "round_score" || state === "finished";
     if (isScoreboard) {
       document.body.classList.add("scoreboard-active");
@@ -78,6 +93,11 @@ const stateChecks = \
       els.hostStagePanel.classList.remove("scoreboard-mode");
       if(els.hostStagePrompt) els.hostStagePrompt.style.display = "";
     }
-\;
-js = js.replace(/els\\.hostStagePrompt\\.textContent = prompt;/, stateChecks + '\\n    els.hostStagePrompt.textContent = prompt;');
+`;
+
+if (!js.includes('document.body.classList.add("scoreboard-active");')) {
+  js = js.replace(/els\.hostStagePrompt\.textContent = prompt;/, stateChecks + '\n    els.hostStagePrompt.textContent = prompt;');
+}
+
 fs.writeFileSync('public/klpp-client.js', js);
+console.log("Phase 6 applied successfully!");

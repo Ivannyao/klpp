@@ -893,6 +893,18 @@
       prompt = "Пауза";
       body = "<p class=\"panel-copy\">Хост поставил игру на паузу.</p>";
     }
+    
+    var isScoreboard = state === "round_score" || state === "finished";
+    if (isScoreboard) {
+      document.body.classList.add("scoreboard-active");
+      els.hostStagePanel.classList.add("scoreboard-mode");
+      if(els.hostStagePrompt) els.hostStagePrompt.style.display = "none";
+    } else {
+      document.body.classList.remove("scoreboard-active");
+      els.hostStagePanel.classList.remove("scoreboard-mode");
+      if(els.hostStagePrompt) els.hostStagePrompt.style.display = "";
+    }
+
     els.hostStagePrompt.textContent = prompt;
     els.hostStageBody.innerHTML = body;
   }
@@ -948,17 +960,31 @@
 
   function renderHostScoreboard(scoreboard, snap, isFinal){
     if(!scoreboard || !scoreboard.length) return "";
-    var rows = scoreboard.map(function(item, index){
-      var winner = index === 0;
+    var sorted = scoreboard.slice().sort(function(a,b){ return b.score - a.score; });
+    var top3 = sorted.slice(0, 3);
+    var rest = sorted.slice(3);
+    var podiumHtml = '<div class="podium-container">';
+    var displayOrder = [1, 0, 2];
+    displayOrder.forEach(function(idx) {
+      if(top3[idx]) {
+        var item = top3[idx];
+        var player = lookupPlayer(snap, item.clientId);
+        var avatarHtml = renderAvatarHtml(player && player.avatar, "md");
+        var placeClass = idx === 0 ? "first" : (idx === 1 ? "second" : "third");
+        podiumHtml += '<div class="podium-spot ' + placeClass + '">' +
+          '<div class="podium-name">' + escapeHtml(item.nickname) + '</div>' +
+          '<div class="podium-avatar">' + avatarHtml + '</div>' +
+          '<div class="podium-block">' + (idx + 1) + '<div class="podium-score">' + (item.score || 0) + '</div></div>' +
+        '</div>';
+      }
+    });
+    podiumHtml += '</div><div class="scoreboard-list">';
+    rest.forEach(function(item) {
       var player = lookupPlayer(snap, item.clientId);
       var avatarHtml = renderAvatarHtml(player && player.avatar, "sm");
-      return '<div class="score-row' + (winner && isFinal ? " winner" : "") + '">' +
-        avatarHtml +
-        '<span class="score-name">' + escapeHtml(item.nickname) + (winner && isFinal ? " 🏆" : "") + '</span>' +
-        '<span class="score-value">' + (item.score || 0) + '</span>' +
-      '</div>';
-    }).join("");
-    return '<div class="stage-scoreboard">' + rows + "</div>";
+      podiumHtml += '<div class="score-row">' + avatarHtml + '<span class="score-name">' + escapeHtml(item.nickname) + '</span><span class="score-value">' + (item.score || 0) + '</span></div>';
+    });
+    return podiumHtml + '</div>';
   }
 
   function buildLobbySummary(snap){
