@@ -13,7 +13,8 @@
     roundCount: 5,
     doublePointsLastRound: false,
     modifierMode: "off",
-    selectedModifiers: []
+    selectedModifiers: [],
+    questionsPerPlayer: 2
   };
   var KLPP_ROUND_COUNT_PRESETS = [3, 5, 7];
 
@@ -82,6 +83,7 @@
     settingsVoteSeconds: id("settingsVoteSeconds"),
     settingsRoundCount: id("settingsRoundCount"),
     settingsModifierMode: id("settingsModifierMode"),
+    settingsQuestionsPerPlayer: id("settingsQuestionsPerPlayer"),
     settingsSelfVotingEnabled: id("settingsSelfVotingEnabled"),
     settingsAnonymousAnswers: id("settingsAnonymousAnswers"),
     settingsDoublePointsLastRound: id("settingsDoublePointsLastRound"),
@@ -1323,6 +1325,7 @@
       answerSeconds: Number(els.settingsAnswerSeconds.value || KLPP_DEFAULT_SETTINGS.answerSeconds),
       voteSeconds: Number(els.settingsVoteSeconds.value || KLPP_DEFAULT_SETTINGS.voteSeconds),
       roundCount: Number((els.settingsRoundCount && els.settingsRoundCount.value) || KLPP_DEFAULT_SETTINGS.roundCount),
+      questionsPerPlayer: Number((els.settingsQuestionsPerPlayer && els.settingsQuestionsPerPlayer.value) || KLPP_DEFAULT_SETTINGS.questionsPerPlayer),
       selfVotingEnabled: els.settingsSelfVotingEnabled.checked,
       anonymousAnswers: els.settingsAnonymousAnswers && els.settingsAnonymousAnswers.checked,
       doublePointsLastRound: els.settingsDoublePointsLastRound && els.settingsDoublePointsLastRound.checked,
@@ -1336,6 +1339,7 @@
     els.settingsAnswerSeconds.value = settings.answerSeconds;
     els.settingsVoteSeconds.value = settings.voteSeconds;
     if(els.settingsRoundCount) els.settingsRoundCount.value = String(settings.roundCount);
+    if(els.settingsQuestionsPerPlayer) els.settingsQuestionsPerPlayer.value = String(settings.questionsPerPlayer);
     els.settingsSelfVotingEnabled.checked = Boolean(settings.selfVotingEnabled);
     if(els.settingsAnonymousAnswers) els.settingsAnonymousAnswers.checked = Boolean(settings.anonymousAnswers);
     if(els.settingsDoublePointsLastRound) els.settingsDoublePointsLastRound.checked = Boolean(settings.doublePointsLastRound);
@@ -1354,6 +1358,7 @@
       answerSeconds: clamp(Number(settings.answerSeconds || KLPP_DEFAULT_SETTINGS.answerSeconds), 20, 180),
       voteSeconds: clamp(Number(settings.voteSeconds || KLPP_DEFAULT_SETTINGS.voteSeconds), 15, 120),
       roundCount: clamp(Number(settings.roundCount || KLPP_DEFAULT_SETTINGS.roundCount), 1, 12),
+      questionsPerPlayer: clamp(Number(settings.questionsPerPlayer || KLPP_DEFAULT_SETTINGS.questionsPerPlayer), 1, 6),
       selfVotingEnabled: Boolean(settings.selfVotingEnabled),
       anonymousAnswers: Boolean(settings.anonymousAnswers),
       doublePointsLastRound: Boolean(settings.doublePointsLastRound),

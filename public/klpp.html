@@ -585,6 +585,9 @@ img{display:block;max-width:100%}
               <option value="random">Случайно по раундам</option>
             </select>
           </label>
+          <label>Вопросов на игрока
+            <input id="settingsQuestionsPerPlayer" name="questionsPerPlayer" type="number" min="1" max="6">
+          </label>
           <label class="check-row wide"><input id="settingsSelfVotingEnabled" name="selfVotingEnabled" type="checkbox"><span>Разрешить голосовать в своём вопросе</span></label>
           <label class="check-row wide"><input id="settingsAnonymousAnswers" name="anonymousAnswers" type="checkbox"><span>Анонимные ответы (имена раскрываются после голосования)</span></label>
           <label class="check-row wide"><input id="settingsDoublePointsLastRound" name="doublePointsLastRound" type="checkbox"><span>Двойные очки в финальном раунде</span></label>
@@ -753,7 +756,11 @@ img{display:block;max-width:100%}
   </section>
 </main>
 
-<script src="/klpp-client.js?v=lobby-only-1"></script>
+<div class="curtain-top" aria-hidden="true"></div>
+<div class="curtain-left" aria-hidden="true"></div>
+<div class="curtain-right" aria-hidden="true"></div>
+
+<script src="/klpp-client.js?v=qpp-2"></script>
 </body>
 </html>
 

@@ -72,12 +72,22 @@ const KLPP_DEFAULT_SETTINGS = Object.freeze({
   roundCount: 5,
   doublePointsLastRound: false,
   modifierMode: "off",
-  selectedModifiers: []
+  selectedModifiers: [],
+  questionsPerPlayer: 2
 });
 
 const KLPP_ROUND_COUNT_PRESETS = [3, 5, 7];
 const KLPP_ROUND_COUNT_MIN = 1;
 const KLPP_ROUND_COUNT_MAX = 12;
+const KLPP_QUESTIONS_PER_PLAYER_MIN = 1;
+const KLPP_QUESTIONS_PER_PLAYER_MAX = 6;
+
+function klppMinPlayersForSettings(settings){
+  // Each player needs (questionsPerPlayer) distinct opponents in a round,
+  // so min players is questionsPerPlayer + 1. Also keep an absolute floor of 3 for fun.
+  const q = (settings && settings.questionsPerPlayer) || KLPP_DEFAULT_SETTINGS.questionsPerPlayer;
+  return Math.max(3, q + 1);
+}
 
 const KLPP_LAUNCH_MS = 2400;
 const KLPP_ROUND_INTRO_MS = 3200;
@@ -171,7 +181,8 @@ function sanitizeKlppSettings(input){
     roundCount: Math.max(KLPP_ROUND_COUNT_MIN, Math.min(KLPP_ROUND_COUNT_MAX, Number(raw.roundCount) || KLPP_DEFAULT_SETTINGS.roundCount)),
     doublePointsLastRound: Boolean(raw.doublePointsLastRound),
     modifierMode: modifierMode,
-    selectedModifiers: selectedModifiers
+    selectedModifiers: selectedModifiers,
+    questionsPerPlayer: Math.max(KLPP_QUESTIONS_PER_PLAYER_MIN, Math.min(KLPP_QUESTIONS_PER_PLAYER_MAX, Number(raw.questionsPerPlayer) || KLPP_DEFAULT_SETTINGS.questionsPerPlayer))
   };
 }
 
@@ -379,18 +390,91 @@ function takeKlppRoundQuestions(room, count){
   return picked;
 }
 
-function generateKlppPairs(room){
-  const players = listKlppPlayers(room).map(function(player){ return player.clientId; });
-  if(players.length < 2) return [];
+// Build a k-regular graph on `players` (each node gets exactly k edges).
+// Greedy: shuffle players, fill opponents, prefer pairs absent from `history`.
+// Returns array of {baseKey, players:[a,b]} or null if it failed to converge.
+function klppTryBuildRoundPairs(players, k, history){
+  const order = shuffleKlpp(players);
+  const counts = {};
+  order.forEach(function(p){ counts[p] = 0; });
+  const used = Object.create(null);
   const pairs = [];
-  for(let i = 0; i < players.length; i += 1){
-    for(let j = i + 1; j < players.length; j += 1){
-      pairs.push({
-        baseKey: unorderedKlppPairKey(players[i], players[j]),
-        players: [players[i], players[j]]
+
+  for(let i = 0; i < order.length; i += 1){
+    const p = order[i];
+    while(counts[p] < k){
+      // Eligible opponents: not self, not yet at quota, not already paired with p
+      const eligible = order.filter(function(q){
+        if(q === p) return false;
+        if(counts[q] >= k) return false;
+        return !used[unorderedKlppPairKey(p, q)];
       });
+      if(!eligible.length) return null;
+      // Prefer pairs absent from history
+      const fresh = eligible.filter(function(q){ return history.indexOf(unorderedKlppPairKey(p, q)) === -1; });
+      const stale = eligible.filter(function(q){ return history.indexOf(unorderedKlppPairKey(p, q)) !== -1; });
+      const ordered = shuffleKlpp(fresh).concat(shuffleKlpp(stale));
+      const q = ordered[0];
+      const key = unorderedKlppPairKey(p, q);
+      used[key] = true;
+      pairs.push({baseKey: key, players: [p, q]});
+      counts[p] += 1;
+      counts[q] += 1;
     }
   }
+  // Sanity check: everyone got exactly k
+  for(let i = 0; i < order.length; i += 1){
+    if(counts[order[i]] !== k) return null;
+  }
+  return pairs;
+}
+
+function generateKlppPairs(room){
+  const players = listKlppPlayers(room).map(function(player){ return player.clientId; });
+  const n = players.length;
+  if(n < 2) return [];
+  let k = Math.max(1, Math.min(KLPP_QUESTIONS_PER_PLAYER_MAX, (room.settings && room.settings.questionsPerPlayer) || KLPP_DEFAULT_SETTINGS.questionsPerPlayer));
+  // k must be < n (you can't play more than n-1 distinct opponents). Clamp down.
+  if(k > n - 1) k = n - 1;
+  // For a k-regular graph to exist, n*k must be even. If not, drop k by 1.
+  if((n * k) % 2 !== 0) k = Math.max(1, k - 1);
+
+  // Try a few times with history-awareness
+  for(let attempt = 0; attempt < 80; attempt += 1){
+    const tried = klppTryBuildRoundPairs(players, k, room.pairHistory || []);
+    if(tried){
+      tried.forEach(function(item){
+        if((room.pairHistory || []).indexOf(item.baseKey) === -1) room.pairHistory.push(item.baseKey);
+      });
+      return shuffleKlpp(tried);
+    }
+  }
+  // Fallback without history awareness
+  for(let attempt = 0; attempt < 40; attempt += 1){
+    const tried = klppTryBuildRoundPairs(players, k, []);
+    if(tried){
+      tried.forEach(function(item){
+        if((room.pairHistory || []).indexOf(item.baseKey) === -1) room.pairHistory.push(item.baseKey);
+      });
+      return shuffleKlpp(tried);
+    }
+  }
+  // Last resort: cyclic neighbour ring (always converges for any k ≤ n-1 if n*k is even)
+  const pairs = [];
+  const used = Object.create(null);
+  for(let i = 0; i < n; i += 1){
+    for(let d = 1; d <= k; d += 1){
+      const j = (i + d) % n;
+      const key = unorderedKlppPairKey(players[i], players[j]);
+      if(!used[key]){
+        used[key] = true;
+        pairs.push({baseKey: key, players: [players[i], players[j]]});
+      }
+    }
+  }
+  pairs.forEach(function(item){
+    if((room.pairHistory || []).indexOf(item.baseKey) === -1) room.pairHistory.push(item.baseKey);
+  });
   return shuffleKlpp(pairs);
 }
 
@@ -908,8 +992,9 @@ function serializeKlppRoom(room, req){
   };
   const viewerAssignments = klppViewerAssignments(room, viewerClientId);
   const answeredCount = viewerAssignments.filter(function(item){ return item.status !== "pending"; }).length;
+  const minPlayers = klppMinPlayersForSettings(room.settings);
   const canStart = room.state === "lobby"
-    && players.length >= 3
+    && players.length >= minPlayers
     && Boolean(viewerPlayer)
     && viewerPlayer.clientId === leaderClientId;
 
@@ -928,7 +1013,7 @@ function serializeKlppRoom(room, req){
     serverTime: Date.now(),
     leaderClientId: leaderClientId,
     lastJoinedClientId: lastJoinedClientId,
-    minPlayersToStart: 3,
+    minPlayersToStart: minPlayers,
     joinUrl: origin + "/klpp?view=join&room=" + room.id,
     settings: clone(room.settings),
     roundIndex: room.roundIndex || 0,
@@ -1431,8 +1516,9 @@ const server = http.createServer(async function(req, res){
         sendJson(res, 409, {ok: false, error: "Игра уже идёт"});
         return;
       }
-      if(room.players.length < 3){
-        sendJson(res, 409, {ok: false, error: "Нужно минимум 3 игрока"});
+      const needPlayers = klppMinPlayersForSettings(room.settings);
+      if(room.players.length < needPlayers){
+        sendJson(res, 409, {ok: false, error: "Нужно минимум " + needPlayers + " игроков"});
         return;
       }
       startKlppGame(room);

@@ -1,6 +1,9 @@
 # KLPP — onboarding
 
-Браузерная multiplayer party game в стиле Jackbox / «Смехлыст». Хост-экран на ТВ/ПК, игроки на телефонах. Текущий код в `C:\IIG\klpp`.
+Браузерная multiplayer party game в стиле Jackbox / «Смехлыст». Хост-экран на ТВ/ПК, игроки на телефонах.
+
+**🌐 Production:** https://klpp.onrender.com/klpp (Render Free, auto-deploy from `main`)
+**💻 Source:** https://github.com/Ivannyao/klpp (локально — `C:\IIG\klpp`)
 
 ## ⚠️ Sync Protocol (важно для всех AI-агентов)
 
