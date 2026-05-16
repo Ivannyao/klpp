@@ -261,7 +261,7 @@ img{display:block;max-width:100%}
 .timer-bar__fill.danger{background:linear-gradient(90deg,#ff6b6b,#c0392b)}
 .timer-bar__label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:Inter,system-ui,sans-serif;font-size:11px;font-weight:900;color:#111;letter-spacing:.04em}
 
-.vote-timer-circle{position:absolute;top:-50px;left:50%;transform:translateX(-50%);width:100px;height:100px;z-index:20;filter:drop-shadow(0 6px 10px rgba(0,0,0,.2))}
+.vote-timer-circle{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);width:140px;height:140px;background:#fff;border-radius:50%;border:8px solid #111;padding:10px;box-shadow:8px 8px 0 rgba(0,0,0,0.15);z-index:20}
 .vote-timer-circle svg{width:100%;height:100%;transform:rotate(-90deg)}
 .vote-timer-circle circle{fill:none;stroke-width:8;stroke-linecap:round}
 .vt-bg{stroke:rgba(255,255,255,.9)}
@@ -342,7 +342,7 @@ img{display:block;max-width:100%}
   .host-controls{right:10px;bottom:10px}
 }
 
-.sunburst-bg{position:fixed;inset:0;z-index:0;background:repeating-conic-gradient(from -10deg,#fff 0deg 14deg,#d1d1d1 14deg 28deg);animation:spin-rays 90s linear infinite}
+.sunburst-bg{position:fixed;left:50%;top:50%;width:180vmax;height:180vmax;transform:translate(-50%,-50%);z-index:0;background:repeating-conic-gradient(from -10deg,#fff 0deg 14deg,#d1d1d1 14deg 28deg);animation:spin-rays 90s linear infinite}
 .video-bg{position:absolute;inset:0;z-index:0;overflow:hidden;background:#000}
 .video-bg iframe{position:absolute;top:50%;left:50%;width:100vw;height:56.25vw;min-height:100vh;min-width:177.77vh;transform:translate(-50%,-50%);pointer-events:none}
 .video-overlay{position:absolute;inset:0;background:linear-gradient(to bottom, rgba(135,206,235,0.2), rgba(0,0,0,0.2))}
@@ -511,7 +511,11 @@ img{display:block;max-width:100%}
         <img class="host-cloud" src="/klpp-assets/lobby/room-cloud.png" alt="">
         <div class="host-scene-overlay" id="hostSceneOverlay"></div>
         <div class="video-bg" id="hostAnswerVideo" hidden>
-          <iframe id="answerIframe" src="https://www.youtube.com/embed/75deCkdo6DY?autoplay=1&mute=1&controls=0&loop=1&playlist=75deCkdo6DY&vq=hd1080" frameborder="0" allow="autoplay; encrypted-media"></iframe>
+          
+          <video id="answerVideo" autoplay loop muted playsinline style="position:absolute; width:100%; height:100%; object-fit:cover;">
+            <source src="/klpp-assets/ocean.mp4" type="video/mp4">
+          </video>
+
           <div class="video-overlay"></div>
         </div>
         <div class="sunburst-bg" id="hostVoteSunburst" hidden></div>

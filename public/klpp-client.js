@@ -720,7 +720,7 @@
 
     var inLobby = snap.state === "lobby";
     els.hostLobbyPanel.hidden = !inLobby;
-    els.hostStagePanel.hidden = inLobby;
+    els.hostStagePanel.hidden = inLobby || inAnswer;
 
     if(inLobby){
       els.hostLobbyCopy.textContent = snap.players.length < snap.minPlayersToStart
@@ -967,6 +967,9 @@
   }
 
   function renderHostPlayers(snap, layout){
+    if(els.hostPlayersLayer) els.hostPlayersLayer.style.display = (snap.state === 'vote' || snap.state === 'vote_result') ? 'none' : '';
+    var inVote = snap.state === 'vote' || snap.state === 'vote_result';
+    if(els.hostPlayersLayer) els.hostPlayersLayer.style.display = inVote ? 'none' : '';
     var layer = els.hostPlayersLayer;
     var existing = {};
     Array.prototype.forEach.call(layer.children, function(node){
@@ -1406,10 +1409,10 @@
       {x: 35, y: 75, scale: 1.1}, {x: 65, y: 75, scale: 1.1}, {x: 15, y: 70, scale: 1.0},
       {x: 85, y: 70, scale: 1.0}, {x: 50, y: 82, scale: 1.2}, {x: 20, y: 82, scale: 1.2}
     ] : [
-      {x: 50, y: 70, scale: 1.05}, {x: 35, y: 65, scale: 0.95}, {x: 65, y: 65, scale: 0.95},
-      {x: 20, y: 75, scale: 1.1}, {x: 80, y: 75, scale: 1.1}, {x: 45, y: 56, scale: 0.85},
-      {x: 55, y: 56, scale: 0.85}, {x: 10, y: 65, scale: 0.95}, {x: 90, y: 65, scale: 0.95},
-      {x: 35, y: 82, scale: 1.15}, {x: 65, y: 82, scale: 1.15}, {x: 15, y: 84, scale: 1.2}
+      {x: 50, y: 75, scale: 1.1}, {x: 38, y: 70, scale: 1.0}, {x: 62, y: 70, scale: 1.0},
+      {x: 26, y: 78, scale: 1.15}, {x: 74, y: 78, scale: 1.15}, {x: 45, y: 62, scale: 0.9},
+      {x: 55, y: 62, scale: 0.9}, {x: 32, y: 58, scale: 0.85}, {x: 68, y: 58, scale: 0.85},
+      {x: 85, y: 66, scale: 0.95}, {x: 40, y: 85, scale: 1.2}, {x: 60, y: 85, scale: 1.2}
     ];
 
     if(snap && snap.state === "answer") {
