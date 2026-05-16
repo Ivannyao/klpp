@@ -897,6 +897,8 @@
         node.style.setProperty("--start-y", "-15%");
         node.style.setProperty("--target-x", pos.x + "%");
         node.style.setProperty("--target-y", pos.y + "%");
+        node.style.setProperty("--target-scale", pos.scale || 1);
+        node.style.setProperty("--target-z", Math.round(pos.y));
         node.style.left = pos.x + "%";
         node.style.top = pos.y + "%";
         node.innerHTML =
@@ -913,6 +915,8 @@
         if(!node.classList.contains("entering") && !node.classList.contains("launching")){
           node.style.setProperty("--target-x", pos.x + "%");
           node.style.setProperty("--target-y", pos.y + "%");
+          node.style.setProperty("--target-scale", pos.scale || 1);
+          node.style.setProperty("--target-z", Math.round(pos.y));
           node.style.left = pos.x + "%";
           node.style.top = pos.y + "%";
         }
@@ -1293,19 +1297,22 @@
 
   function getHostLayout(){
     var width = window.innerWidth;
-    if(width <= 760){
-      return {
-        fieldSpots: [
-          {x:14, y:58}, {x:28, y:55}, {x:42, y:61}, {x:18, y:72}, {x:38, y:73}, {x:56, y:68}
-        ],
-        lastJoinedSpot: {x:72, y:78}
-      };
-    }
+    var isMobile = width <= 760;
+    
+    var spots = isMobile ? [
+      {x: 50, y: 65, scale: 1}, {x: 25, y: 60, scale: 0.9}, {x: 75, y: 60, scale: 0.9},
+      {x: 35, y: 75, scale: 1.1}, {x: 65, y: 75, scale: 1.1}, {x: 15, y: 70, scale: 1.0},
+      {x: 85, y: 70, scale: 1.0}, {x: 50, y: 82, scale: 1.2}, {x: 20, y: 82, scale: 1.2}
+    ] : [
+      {x: 50, y: 70, scale: 1.05}, {x: 35, y: 65, scale: 0.95}, {x: 65, y: 65, scale: 0.95},
+      {x: 20, y: 75, scale: 1.1}, {x: 80, y: 75, scale: 1.1}, {x: 45, y: 56, scale: 0.85},
+      {x: 55, y: 56, scale: 0.85}, {x: 10, y: 65, scale: 0.95}, {x: 90, y: 65, scale: 0.95},
+      {x: 35, y: 82, scale: 1.15}, {x: 65, y: 82, scale: 1.15}, {x: 15, y: 84, scale: 1.2}
+    ];
+
     return {
-      fieldSpots: [
-        {x:7, y:58}, {x:13, y:52}, {x:20, y:58}, {x:27, y:53}, {x:34, y:59}, {x:11, y:70}, {x:22, y:68}, {x:32, y:71}
-      ],
-      lastJoinedSpot: {x:72, y:74}
+      fieldSpots: spots,
+      lastJoinedSpot: isMobile ? {x: 85, y: 85, scale: 1.2} : {x: 85, y: 80, scale: 1.2}
     };
   }
 
