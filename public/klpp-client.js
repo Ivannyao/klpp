@@ -69,6 +69,9 @@
     hostStageTimer: id("hostStageTimer"),
     hostStageTimerFill: id("hostStageTimerFill"),
     hostStageTimerLabel: id("hostStageTimerLabel"),
+    hostVoteTimerCircleContainer: id("hostVoteTimerCircleContainer"),
+    hostVoteTimerCircle: id("hostVoteTimerCircle"),
+    hostVoteTimerLabel: id("hostVoteTimerLabel"),
     hostStageBody: id("hostStageBody"),
     hostControls: id("hostControls"),
     hostPauseButton: id("hostPauseButton"),
@@ -367,6 +370,7 @@
   function hideTimers(){
     els.playerTimerBar.hidden = true;
     els.hostStageTimer.hidden = true;
+    if(els.hostVoteTimerCircleContainer) els.hostVoteTimerCircleContainer.hidden = true;
   }
 
   function tickLocalTimer(){
@@ -388,13 +392,40 @@
     } else {
       els.playerTimerBar.hidden = true;
     }
+    
+    var hostSegmentedTimer = document.getElementById("hostSegmentedTimer");
+    var hostSegmentedTimerLabel = document.getElementById("hostSegmentedTimerLabel");
+
     if(showOnHost){
-      els.hostStageTimer.hidden = false;
-      els.hostStageTimerFill.style.width = pct + "%";
-      els.hostStageTimerFill.classList.toggle("danger", remainMs < 5000);
-      els.hostStageTimerLabel.textContent = secs + " сек";
+      if (snap.state === "vote") {
+        if(hostSegmentedTimer) hostSegmentedTimer.hidden = true;
+        els.hostStageTimer.hidden = true;
+        if(els.hostVoteTimerCircleContainer) els.hostVoteTimerCircleContainer.hidden = false;
+        var offset = 289 - (289 * (pct / 100));
+        if(els.hostVoteTimerCircle) els.hostVoteTimerCircle.style.strokeDashoffset = offset;
+        if(els.hostVoteTimerCircle) els.hostVoteTimerCircle.classList.toggle("danger", remainMs < 5000);
+        if(els.hostVoteTimerLabel) els.hostVoteTimerLabel.textContent = secs;
+      } else if (snap.state === "answer") {
+        els.hostStageTimer.hidden = true;
+        if(els.hostVoteTimerCircleContainer) els.hostVoteTimerCircleContainer.hidden = true;
+        if(hostSegmentedTimer) {
+          hostSegmentedTimer.hidden = false;
+          hostSegmentedTimerLabel.textContent = secs < 10 ? "0" + secs : secs;
+        }
+      } else {
+        if(hostSegmentedTimer) hostSegmentedTimer.hidden = true;
+        if(els.hostVoteTimerCircleContainer) els.hostVoteTimerCircleContainer.hidden = true;
+        els.hostStageTimer.hidden = false;
+        els.hostStageTimerFill.style.width = pct + "%";
+        els.hostStageTimerFill.classList.toggle("danger", remainMs < 5000);
+        els.hostStageTimerLabel.textContent = secs + " сек";
+      }
+
     } else {
       els.hostStageTimer.hidden = true;
+      if(els.hostVoteTimerCircleContainer) els.hostVoteTimerCircleContainer.hidden = true;
+      var hostSegmentedTimer = document.getElementById("hostSegmentedTimer");
+      if(hostSegmentedTimer) hostSegmentedTimer.hidden = true;
     }
   }
 
@@ -702,6 +733,7 @@
 
     renderHostModifierBadges(snap);
     renderRoundTransitionOverlay(snap);
+    checkWaveTransition(snap);
 
     var canPause = snap.hostControls && snap.hostControls.canPause;
     var canResume = snap.hostControls && snap.hostControls.canResume;
@@ -732,6 +764,25 @@
     els.hostModifiers.innerHTML = mods.map(buildModifierBadgeHtml).join("");
   }
 
+  
+  var prevHostState = "";
+  function checkWaveTransition(snap) {
+    if (state.view !== "host") return;
+    if (prevHostState === "answer" && snap.state === "vote") {
+      var wave = document.getElementById("hostWaveTransition");
+      if (wave) {
+        wave.classList.remove("active");
+        wave.style.top = "-120vh";
+        wave.style.transition = "none";
+        setTimeout(() => {
+          wave.style.transition = "top 1.2s cubic-bezier(0.4, 0, 0.2, 1)";
+          wave.classList.add("active");
+        }, 50);
+      }
+    }
+    prevHostState = snap.state;
+  }
+
   function renderRoundTransitionOverlay(snap){
     if(!els.hostRoundTransition) return;
     var isIntro = snap && snap.state === "round_intro" && snap.currentRound;
@@ -741,9 +792,11 @@
       return;
     }
     var roundNumber = snap.currentRound.roundNumber;
+    
     if(state.lastTransitionRound !== roundNumber){
       state.lastTransitionRound = roundNumber;
     }
+
     els.hostRoundTransitionNumber.textContent = String(roundNumber);
     var mods = snap.activeModifiers || [];
     els.hostRoundTransitionMods.innerHTML = mods.map(buildModifierBadgeHtml).join("");
@@ -755,7 +808,46 @@
   }
 
   function renderHostStage(snap){
+    
     var state = snap.state;
+    var inAnswer = state === "answer";
+    var inVote = state === "vote" || state === "vote_result";
+    
+    els.hostStagePanel.classList.toggle("vote-mode", inVote);
+    els.hostStagePanel.classList.toggle("answer-mode", inAnswer);
+    
+    var hostAnswerVideo = document.getElementById("hostAnswerVideo");
+    var hostAnswerText = document.getElementById("hostAnswerText");
+    var hostVoteSunburst = document.getElementById("hostVoteSunburst");
+    var qrCard = document.querySelector(".host-qr-card");
+    var roomCode = document.getElementById("hostRoomCode");
+    var roomCopy = document.querySelector(".host-room-copy");
+    var hostCaption = document.querySelector(".host-caption");
+    var hostCloud = document.querySelector(".host-cloud");
+    var hostTrash = document.querySelector(".host-trash");
+
+    if (inAnswer) {
+      if (hostAnswerVideo) hostAnswerVideo.hidden = false;
+      if (hostAnswerText) hostAnswerText.hidden = false;
+    } else {
+      if (hostAnswerVideo) hostAnswerVideo.hidden = true;
+      if (hostAnswerText) hostAnswerText.hidden = true;
+    }
+
+    if (inVote) {
+      if (hostVoteSunburst) hostVoteSunburst.hidden = false;
+    } else {
+      if (hostVoteSunburst) hostVoteSunburst.hidden = true;
+    }
+
+    var hideLobbyStuff = inAnswer || inVote;
+    if (qrCard) qrCard.style.display = hideLobbyStuff ? "none" : "";
+    if (roomCode) roomCode.style.display = hideLobbyStuff ? "none" : "";
+    if (roomCopy) roomCopy.style.display = hideLobbyStuff ? "none" : "";
+    if (hostCaption) hostCaption.style.display = hideLobbyStuff ? "none" : "";
+    if (hostCloud) hostCloud.style.display = hideLobbyStuff ? "none" : "";
+    if (hostTrash) hostTrash.style.display = hideLobbyStuff ? "none" : "";
+
     var meta = [];
     if(snap.currentRound){
       meta.push('<span class="meta-chip">Раунд ' + snap.currentRound.roundNumber + " / " + snap.totalRounds + "</span>");
@@ -884,9 +976,9 @@
     var liveIds = {};
     snap.players.forEach(function(player, index){
       liveIds[player.clientId] = true;
-      var trashSpot = snap.players.length > 1 && player.isLastJoined && !player.isLeader;
+      var trashSpot = index >= layout.fieldSpots.length;
       var fieldIndex = trashSpot ? Math.max(0, index - 1) : index;
-      var pos = trashSpot ? layout.lastJoinedSpot : layout.fieldSpots[fieldIndex % layout.fieldSpots.length];
+      var pos = trashSpot ? layout.lastJoinedSpot : layout.fieldSpots[index % layout.fieldSpots.length];
       var node = existing[player.clientId];
       if(!node){
         node = document.createElement("div");
@@ -897,6 +989,7 @@
           finalY = -25;
         }
 
+        var startX = pos.x + (Math.random() * 26 - 13);
         node.style.setProperty("--start-x", startX + "%");
         node.style.setProperty("--start-y", "-15%");
         node.style.setProperty("--target-x", pos.x + "%");
@@ -1321,11 +1414,12 @@
 
     if(snap && snap.state === "answer") {
       var playerCount = Math.max(1, (snap.players && snap.players.length) || 1);
-      var totalWidth = playerCount * 13;
-      var startX = 50 - (totalWidth / 2) + 6.5;
+      var gap = Math.min(16, 80 / playerCount);
+      var totalWidth = (playerCount - 1) * gap;
+      var startX = 50 - (totalWidth / 2);
       spots = [];
       for(var i = 0; i < playerCount; i++){
-        spots.push({x: startX + i * 13, y: 84, scale: 0.95});
+        spots.push({x: startX + i * gap, y: 86, scale: 0.9});
       }
     }
 
