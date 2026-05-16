@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>КЛПП</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#171717;
+  --yellow:#fff3b8;
+  --shadow:rgba(0,0,0,.22);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Arial Black,Impact,Inter,system-ui,sans-serif;color:var(--ink)}
+body{background:#fff;overflow-x:hidden}
+button,a,input{font:inherit}
+img{display:block;max-width:100%}
+[hidden]{display:none!important}
+
+.site-nav{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;pointer-events:none}
+.brand{font-size:18px;font-weight:900;text-transform:uppercase;color:#178514;text-shadow:1px 1px 0 #fff;pointer-events:auto}
+.nav-links{display:flex;gap:8px;align-items:center;pointer-events:auto}
+.nav-link{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:8px 12px;border:2px solid #111;border-radius:999px;background:#fff;color:#111;text-decoration:none;font-size:13px;font-weight:900;box-shadow:3px 3px 0 var(--shadow)}
+.nav-link.active{background:#ffd447}
+.mobile-toggle,.hamburger{display:none}
+
+.back-button{position:fixed;left:14px;top:14px;z-index:75;width:52px;height:52px;border:3px solid #111;border-radius:999px;background:#fff;box-shadow:5px 5px 0 rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:26px;font-weight:900}
+.screen{position:relative;min-height:100vh}
+
+.screen-home{overflow:hidden;background:#fff}
+.screen-home:before{content:"";position:fixed;left:50%;top:50%;width:180vmax;height:180vmax;transform:translate(-50%,-50%);background:repeating-conic-gradient(from -10deg,#fff 0deg 14deg,#d1d1d1 14deg 28deg);animation:spin-rays 90s linear infinite;z-index:0}
+
+.desktop-menu,.mobile-menu{position:relative;z-index:1}
+.desktop-menu{width:100vw;height:100vh;min-height:620px;overflow:hidden}
+.desktop-canvas{position:absolute;left:50%;top:50%;width:min(100vw,calc(100vh * 1366 / 768));aspect-ratio:1366/768;transform:translate(-50%,-50%);overflow:visible}
+.asset{position:absolute;user-select:none;pointer-events:none}
+.cloud-main{left:50%;top:4.8%;width:61.4%;transform:translateX(-50%);filter:drop-shadow(0 8px 0 rgba(0,0,0,.12));z-index:2}
+.cloud-kto{left:15.7%;top:11.1%;width:17.8%;rotate:-6deg;filter:drop-shadow(0 6px 0 rgba(0,0,0,.14));z-index:3}
+.word{z-index:4;filter:drop-shadow(4px 7px 0 rgba(0,0,0,.20))}
+.word-kto{left:13.5%;top:10.9%;width:25.1%;rotate:-8deg;z-index:6;animation:kto-jitter 1.08s steps(12,end) infinite}
+.word-luchshe{left:20.9%;top:21.9%;width:25.2%;z-index:4;animation:luchshe-jitter 1.33s steps(12,end) infinite}
+.word-poshutit{left:34%;top:32.8%;width:24.2%;z-index:5;animation:poshutit-jitter .92s steps(12,end) infinite}
+.word-pro{left:49.5%;top:43%;width:15.4%;z-index:4;filter:drop-shadow(3px 6px 0 rgba(0,0,0,.16));animation:pro-jitter 1.18s steps(12,end) infinite}
+
+.desktop-button{position:absolute;z-index:8;border:0;background:transparent;padding:0;cursor:pointer;transition:transform .16s ease;filter:drop-shadow(0 8px 0 rgba(0,0,0,.18))}
+.desktop-button img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transition:opacity .14s ease}
+.desktop-button .pad{opacity:1}
+.desktop-button.has-pad .normal,.desktop-button.has-pad .alt{left:50%;top:50%;right:auto;bottom:auto;width:54%;height:64%;transform:translate(-50%,-50%)}
+.desktop-button .alt{opacity:0}
+.desktop-button:hover,.desktop-button:focus-visible{transform:scale(1.16) rotate(-4deg)}
+.desktop-button:hover .normal,.desktop-button:focus-visible .normal{opacity:0}
+.desktop-button:hover .alt,.desktop-button:focus-visible .alt{opacity:1}
+.btn-settings{left:16.6%;top:51.8%;width:18.9%;height:18.3%}
+.btn-play{left:45.7%;top:65.6%;width:10.4%;height:22.3%}
+.btn-packs{left:65.2%;top:51.7%;width:18.4%;height:18.8%}
+.desktop-role-split{position:absolute;left:50%;top:69.5%;transform:translate(-50%,-50%);display:grid;grid-template-columns:1fr 1fr;gap:18px;z-index:12}
+.screen-home.role-open .btn-play{opacity:.24;pointer-events:none}
+.screen-home.role-open .mobile-actions{opacity:.18;pointer-events:none}
+.role-split-button{width:156px;padding:14px 12px;border:3px solid #111;border-radius:26px;background:rgba(255,255,255,.95);box-shadow:7px 8px 0 rgba(0,0,0,.18);display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer}
+.role-split-button.host{background:#fff3b8}
+.role-icon{width:64px;height:64px;border:3px solid #111;border-radius:20px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:34px;line-height:1}
+.role-split-button strong{font-size:24px;line-height:1}
+.role-split-button span{font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:900;text-align:center;line-height:1.2}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.mobile-menu{display:none}
+
+.screen-host{background:url("/klpp-assets/lobby/hill-bg.jpg") center center / cover no-repeat}
+.screen-join,.screen-player,.screen-settings{background:#fff;overflow:hidden}
+.screen-join:before,.screen-player:before,.screen-settings:before{content:"";position:fixed;left:50%;top:50%;width:180vmax;height:180vmax;transform:translate(-50%,-50%);background:repeating-conic-gradient(from -10deg,#fff 0deg 14deg,#d1d1d1 14deg 28deg);animation:spin-rays 90s linear infinite;z-index:0}
+.host-shell,.join-shell,.player-shell,.settings-shell{position:relative;min-height:100vh;padding:88px 18px 28px;z-index:1}
+
+.host-scene{position:relative;width:100vw;min-height:calc(100vh - 116px);margin-left:calc(50% - 50vw);overflow:hidden}
+.host-trash{position:absolute;right:clamp(-14px,.8vw,14px);bottom:clamp(6px,1.4vh,24px);width:clamp(290px,29vw,500px);z-index:5;filter:drop-shadow(0 12px 20px rgba(0,0,0,.16))}
+.host-cloud{position:absolute;right:clamp(0px,2.6vw,42px);top:clamp(36px,6.6vh,86px);width:clamp(400px,42vw,720px);z-index:4;opacity:.94}
+.host-qr-card{position:absolute;right:19%;top:10%;width:240px;padding:14px;background:rgba(255,255,255,.96);border:4px solid #111;border-radius:24px;box-shadow:8px 8px 0 rgba(0,0,0,.17);z-index:7}
+.host-qr-card img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:14px;background:#fff}
+.host-room-code{position:absolute;right:8.2%;top:29.6%;z-index:9;min-width:192px;padding:10px 24px 12px;border-radius:999px;border:3px solid #111;background:#fffdf2;box-shadow:5px 5px 0 rgba(0,0,0,.18);font-family:"Lobster",cursive;font-size:34px;letter-spacing:.06em;line-height:1;text-align:center}
+.host-room-copy{position:absolute;right:17.5%;top:48%;z-index:7;display:flex;gap:10px;flex-wrap:wrap;align-items:center;max-width:260px}
+.small-pill{border:3px solid #111;background:rgba(255,255,255,.92);border-radius:999px;box-shadow:4px 4px 0 rgba(0,0,0,.16);padding:8px 14px;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:900}
+.host-copy-link{background:#ffd447;cursor:pointer}
+.host-caption{position:absolute;left:2%;bottom:3%;z-index:9;max-width:320px;padding:14px 18px;border-radius:24px;background:rgba(255,255,255,.9);border:3px solid #111;box-shadow:6px 7px 0 rgba(0,0,0,.18);font-family:Inter,system-ui,sans-serif;font-size:15px;font-weight:800}
+.host-players{position:absolute;left:0;right:0;top:0;bottom:0;z-index:10}
+.host-player{position:absolute;left:var(--target-x);top:var(--target-y);width:118px;display:flex;flex-direction:column;align-items:center;gap:6px;transform:translate(-50%,-50%);will-change:left,top,transform,opacity}
+.host-player.entering{animation:fly-from-sky 1.95s cubic-bezier(.2,.83,.24,1) both}
+.player-sprite{width:94px;height:94px;object-fit:contain;mix-blend-mode:multiply;filter:drop-shadow(0 10px 16px rgba(0,0,0,.18))}
+.player-tag{min-width:92px;max-width:138px;padding:16px 14px;border-radius:999px;background:#0d0d0d;color:#fff;text-align:center;font-family:Inter,system-ui,sans-serif;font-size:16px;font-weight:900;line-height:1.05;box-shadow:0 8px 18px rgba(0,0,0,.25)}
+.legend-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);padding:5px 10px;border-radius:999px;background:linear-gradient(180deg,#ffe58a,#c79211);color:#472600;border:2px solid rgba(89,51,0,.65);font-size:12px;letter-spacing:.08em;box-shadow:0 6px 10px rgba(0,0,0,.18)}
+.host-panel,.stage-panel{position:absolute;z-index:12;background:rgba(255,255,255,.94);border:3px solid #111;border-radius:28px;box-shadow:8px 9px 0 rgba(0,0,0,.18)}
+.host-panel{left:14px;top:108px;width:min(360px,31vw);padding:18px 18px 16px}
+.host-panel.active-controls{top:auto;bottom:118px;width:min(310px,30vw);padding:14px}
+.host-panel.active-controls .lobby-summary{display:none}
+.host-panel.active-controls .panel-copy{margin-bottom:8px;font-size:12px}
+.host-panel.active-controls .panel-title{font-size:22px;margin-bottom:6px}
+.stage-panel{left:14px;top:108px;width:min(420px,35vw);padding:18px 18px 16px}
+.panel-title{margin:0 0 12px;font-size:28px;line-height:1}
+.panel-copy{margin:0 0 12px;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:800}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.settings-grid label,.field-stack textarea{font-family:Inter,system-ui,sans-serif}
+.settings-grid label{display:grid;gap:6px;font-size:12px;font-weight:900;text-transform:uppercase}
+.settings-grid input,.settings-grid select,.field-stack textarea{width:100%;padding:12px 14px;border:3px solid #111;border-radius:16px;background:#fff;font-size:16px;font-weight:800}
+.settings-grid .wide{grid-column:1 / -1}
+.check-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:3px solid #111;border-radius:16px;background:#fff}
+.check-row input{width:18px;height:18px;margin:0}
+.settings-note{min-height:20px;margin-top:10px;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:800}
+.stage-prompt{margin:6px 0 12px;font-size:28px;line-height:1.05}
+.stage-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.meta-chip{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border:2px solid #111;border-radius:999px;background:#fffbe2;font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:900}
+.answer-stack,.score-stack,.vote-stack{display:grid;gap:10px}
+.answer-card,.score-card,.vote-card{padding:12px 14px;border:3px solid #111;border-radius:18px;background:#fff;box-shadow:4px 5px 0 rgba(0,0,0,.14)}
+.answer-card strong,.score-card strong,.vote-card strong{display:block;margin-bottom:6px;font-size:15px}
+.answer-card p,.score-card p,.vote-card p{margin:0;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:800;line-height:1.25}
+.score-card.winner{background:#fff3b8}
+.vote-card{cursor:pointer;text-align:left}
+.vote-card[disabled]{opacity:.6;cursor:default}
+.score-line{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.pack-preview{margin-top:12px;padding:12px;border-radius:18px;border:3px dashed #111;background:#fff8df;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:800;line-height:1.35;max-height:132px;overflow:auto}
+.settings-save-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
+.lobby-summary{display:grid;gap:10px;margin-top:10px}
+.summary-card{padding:12px 14px;border:3px solid #111;border-radius:18px;background:#fff9df;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:800;line-height:1.32}
+
+.join-card,.player-card,.settings-card{width:min(100%,470px);margin:0 auto;padding:26px 22px;border-radius:28px;background:rgba(255,255,255,.92);border:4px solid #111;box-shadow:10px 10px 0 rgba(0,0,0,.18)}
+.settings-card{width:min(100%,540px)}
+.join-card h1,.player-card h1,.settings-card h1{margin:0 0 10px;font-size:42px;line-height:.95}
+.join-card p,.player-card p,.settings-card p{margin:0 0 16px;font-family:Inter,system-ui,sans-serif;font-size:16px;font-weight:800}
+.field-stack{display:grid;gap:12px}
+.field-stack label{display:grid;gap:6px;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:900;text-transform:uppercase}
+.field-stack input{width:100%;padding:16px 18px;border:3px solid #111;border-radius:18px;background:#fff;font-size:22px;font-weight:900}
+.field-stack textarea{min-height:136px;resize:vertical}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+.cta{border:3px solid #111;border-radius:999px;background:#ffd447;color:#111;padding:13px 22px;min-height:56px;cursor:pointer;box-shadow:5px 5px 0 rgba(0,0,0,.18);font-size:20px;font-weight:900;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.cta.secondary{background:#fff}
+.join-hill-note,.player-hill-note{margin:20px auto 0;width:min(100%,470px);padding:14px 18px;border-radius:24px;background:rgba(255,255,255,.86);border:3px solid #111;box-shadow:6px 7px 0 rgba(0,0,0,.16);font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:800}
+.player-list{display:grid;gap:10px;margin-top:18px}
+.player-list-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:2px solid #111;border-radius:18px;background:rgba(255,255,255,.95);font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:900}
+.player-list-item img{width:46px;height:46px;object-fit:contain;mix-blend-mode:multiply}
+.player-list-note{margin-left:auto;font-size:12px}
+.status-banner{display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border-radius:999px;border:2px solid #111;background:#fff9cf;font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:900;margin-bottom:12px}
+.player-message{margin-top:14px;padding:16px 18px;border-radius:22px;background:#fffaf0;border:3px dashed #111;font-family:Inter,system-ui,sans-serif;font-size:16px;font-weight:900}
+.player-wait{background:#f5f5f5}
+.player-started{background:#e1ffd7}
+.join-error{color:#8a1212;min-height:22px;margin-top:10px;font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:800}
+.settings-screen-note{margin:20px auto 0;width:min(100%,540px);padding:14px 18px;border-radius:24px;background:rgba(255,255,255,.86);border:3px solid #111;box-shadow:6px 7px 0 rgba(0,0,0,.16);font-family:Inter,system-ui,sans-serif;font-size:14px;font-weight:800}
+.host-controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.host-controls .small-pill{cursor:pointer}
+.host-scene-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);pointer-events:none;z-index:6;transition:background .45s ease}
+.host-scene-overlay.launch{background:rgba(0,0,0,.88)}
+.host-player.launching{animation:fly-up-away 2.3s cubic-bezier(.2,.84,.26,1) both}
+
+@media (max-width:1240px){
+  .host-cloud{right:clamp(-12px,1vw,24px);top:clamp(46px,7vh,92px);width:clamp(360px,40vw,600px)}
+  .host-qr-card{right:9%;top:11%;width:210px}
+  .host-room-code{right:4.5%;top:31%;font-size:28px;min-width:164px}
+  .host-room-copy{right:10%;top:49%;max-width:210px;display:grid;gap:10px}
+  .host-trash{right:clamp(-26px,-1vw,8px);width:clamp(250px,28vw,420px)}
+  .host-caption{left:14px;bottom:14px;max-width:290px;font-size:14px}
+  .host-panel,.stage-panel{width:min(330px,34vw)}
+  .host-player{width:100px}
+  .player-sprite{width:80px;height:80px}
+  .player-tag{min-width:78px;max-width:116px;padding:11px 10px;font-size:14px}
+}
+
+@keyframes spin-rays{to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes kto-jitter{0%,100%{translate:0 0;rotate:-8deg}18%{translate:2px -1px;rotate:-6.7deg}43%{translate:-1px 2px;rotate:-9.6deg}67%{translate:1px 0;rotate:-7.4deg}84%{translate:-2px -1px;rotate:-8.8deg}}
+@keyframes luchshe-jitter{0%,100%{translate:0 0;rotate:0deg}16%{translate:-2px 1px;rotate:-.7deg}39%{translate:1px -2px;rotate:1.1deg}61%{translate:2px 0;rotate:-1.3deg}88%{translate:-1px -1px;rotate:.5deg}}
+@keyframes poshutit-jitter{0%,100%{translate:0 0;rotate:0deg}21%{translate:1px 2px;rotate:1.4deg}48%{translate:-2px 0;rotate:-.8deg}72%{translate:2px -1px;rotate:.4deg}91%{translate:-1px 1px;rotate:-1.1deg}}
+@keyframes pro-jitter{0%,100%{translate:0 0;rotate:0deg}14%{translate:2px 1px;rotate:.8deg}36%{translate:-2px -1px;rotate:-1.5deg}58%{translate:1px -2px;rotate:1.2deg}79%{translate:-1px 1px;rotate:-.4deg}}
+@keyframes fly-from-sky{
+  0%{left:var(--start-x);top:var(--start-y);transform:translate(-50%,-50%) scale(.12) rotate(-16deg);opacity:0}
+  18%{left:var(--start-x);top:var(--start-y);transform:translate(-50%,-50%) scale(.28) rotate(-14deg);opacity:0}
+  27%{left:calc((var(--start-x) * .9) + (var(--target-x) * .1));top:calc((var(--start-y) * .88) + (var(--target-y) * .12));transform:translate(-50%,-50%) scale(.68) rotate(2deg);opacity:1}
+  56%{left:calc((var(--start-x) * .42) + (var(--target-x) * .58));top:calc(var(--target-y) - 8.5%);transform:translate(-50%,-50%) scale(1.05) rotate(8deg);opacity:1}
+  80%{left:calc((var(--start-x) * .14) + (var(--target-x) * .86));top:calc(var(--target-y) + 1.4%);transform:translate(-50%,-50%) scale(.98) rotate(-2deg);opacity:1}
+  100%{left:var(--target-x);top:var(--target-y);transform:translate(-50%,-50%) scale(1) rotate(0deg);opacity:1}
+}
+@keyframes fly-up-away{
+  0%{transform:translate(-50%,-50%) scale(1) rotate(0deg);opacity:1}
+  35%{transform:translate(-50%,-65%) scale(1.08) rotate(-5deg);opacity:1}
+  100%{transform:translate(-50%,-195%) scale(.34) rotate(10deg);opacity:0}
+}
+
+@media (max-width:980px){
+  .host-trash{right:clamp(-16px,-1vw,4px);bottom:clamp(6px,1.2vh,18px);width:clamp(240px,30vw,360px)}
+  .host-cloud{right:clamp(-18px,-2vw,14px);top:clamp(44px,7vh,88px);width:clamp(330px,40vw,520px)}
+  .host-qr-card{right:7%;top:14%;width:178px}
+  .host-room-code{right:5%;top:31.5%;font-size:24px;min-width:146px}
+  .host-room-copy{right:7%;top:49%;max-width:180px;display:grid;gap:8px}
+  .host-caption{left:12px;right:12px;bottom:12px;max-width:none;font-size:13px}
+  .host-panel,.stage-panel{left:12px;top:96px;width:min(300px,44vw);padding:14px}
+  .panel-title{font-size:24px}
+  .stage-prompt{font-size:22px}
+  .settings-grid{grid-template-columns:1fr}
+  .host-player{width:92px}
+  .player-sprite{width:72px;height:72px}
+  .player-tag{min-width:74px;max-width:104px;padding:10px 8px;font-size:12px}
+}
+
+@media (max-width:760px){
+  .site-nav{align-items:flex-start;flex-wrap:wrap}
+  .hamburger{display:flex;width:40px;height:36px;border:2px solid #111;border-radius:999px;background:#fff;box-shadow:3px 3px 0 var(--shadow);align-items:center;justify-content:center;cursor:pointer;pointer-events:auto}
+  .hamburger span,.hamburger span:before,.hamburger span:after{display:block;content:"";width:18px;height:3px;background:#111;border-radius:3px;position:relative}
+  .hamburger span:before{position:absolute;top:-7px}
+  .hamburger span:after{position:absolute;top:7px}
+  .nav-links{display:none;order:3;width:100%;flex-direction:column;align-items:stretch}
+  .nav-link{width:100%}
+  .mobile-toggle:checked ~ .nav-links{display:flex}
+  .desktop-menu{display:none}
+  .mobile-menu{display:flex;min-height:100svh;padding:72px 16px 28px;align-items:center;justify-content:center;overflow:hidden}
+  .mobile-collage{position:relative;width:min(calc(100vw - 32px),420px);max-width:100%;min-height:700px}
+  .m-cloud{position:absolute;left:50%;top:118px;width:min(108%,430px);transform:translateX(-50%);filter:drop-shadow(0 8px 0 rgba(0,0,0,.15));z-index:2}
+  .m-kto-cloud{left:8%;top:76px;width:30%;rotate:-6deg;filter:drop-shadow(0 6px 0 rgba(0,0,0,.14));z-index:3}
+  .m-kto{left:5%;top:66px;width:40%;rotate:-9deg;z-index:6;animation:kto-jitter 1.08s steps(12,end) infinite}
+  .m-luchshe{left:31%;top:210px;width:47%;z-index:5;animation:luchshe-jitter 1.33s steps(12,end) infinite}
+  .m-poshutit{left:23%;top:284px;width:45%;z-index:5;animation:poshutit-jitter .92s steps(12,end) infinite}
+  .m-pro{right:14%;top:346px;width:27%;z-index:4;animation:pro-jitter 1.18s steps(12,end) infinite}
+  .mobile-actions{position:absolute;left:0;right:0;top:438px;width:100%;display:grid;gap:12px;z-index:6}
+  .mobile-role-split{position:absolute;left:0;right:0;top:438px;display:grid;grid-template-columns:1fr 1fr;gap:12px;z-index:8}
+  .mobile-role-split .role-split-button{width:auto;min-height:156px}
+  .mobile-action{display:grid;grid-template-columns:66px 1fr;align-items:center;gap:14px;min-height:82px;padding:9px 14px;border:3px solid #111;border-radius:20px;background:rgba(255,255,255,.9);box-shadow:6px 7px 0 rgba(0,0,0,.22);text-decoration:none;color:#111;overflow:hidden}
+  .mobile-action img{width:62px;height:62px;object-fit:contain}
+  .mobile-action strong{display:block;font-size:24px;line-height:1}
+  .mobile-action span{display:block;margin-top:3px;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:900}
+  .mobile-action.primary{background:var(--yellow)}
+  .host-shell,.join-shell,.player-shell,.settings-shell{padding:82px 10px 20px}
+  .host-scene{min-height:calc(100vh - 104px)}
+  .host-cloud{right:-2%;top:9%;width:56%}
+  .host-qr-card{right:9%;top:13%;width:142px;padding:10px}
+  .host-room-code{right:6%;top:29%;font-size:22px;min-width:138px;padding:8px 16px}
+  .host-room-copy{left:10px;right:10px;top:auto;bottom:118px;max-width:none;display:flex;justify-content:flex-start;gap:10px}
+  .host-caption{left:10px;right:10px;bottom:10px;max-width:none}
+  .host-trash{right:-10%;bottom:10%;width:44%}
+  .host-panel,.stage-panel{left:10px;right:10px;top:88px;width:auto;max-width:none}
+  .host-panel.active-controls{top:auto;bottom:76px;width:auto}
+  .stage-panel{bottom:126px;top:auto;max-height:46vh;overflow:auto}
+  .host-player{width:86px}
+  .player-sprite{width:70px;height:70px}
+  .player-tag{min-width:74px;max-width:100px;padding:10px 8px;font-size:12px}
+  .legend-badge{font-size:10px}
+  .join-card h1,.player-card h1,.settings-card h1{font-size:34px}
+}
+
+.character-avatar{position:relative;width:96px;height:96px;border-radius:999px;border:3px solid #111;background:#ffd447;box-shadow:4px 5px 0 rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;font-size:54px;line-height:1}
+.character-avatar.sm{width:46px;height:46px;font-size:26px;box-shadow:3px 3px 0 rgba(0,0,0,.15);border-width:2px}
+.character-avatar.md{width:68px;height:68px;font-size:38px;box-shadow:3px 4px 0 rgba(0,0,0,.16)}
+.character-editor{display:grid;gap:14px;margin:14px 0 4px;padding:16px;border:3px solid #111;border-radius:22px;background:rgba(255,255,255,.96);box-shadow:5px 6px 0 rgba(0,0,0,.16)}
+.character-preview{display:flex;align-items:center;gap:14px}
+.character-preview__name{font-family:Inter,system-ui,sans-serif;font-size:18px;font-weight:900;word-break:break-word}
+.character-field{display:grid;gap:8px;font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:900;text-transform:uppercase}
+.character-field input{width:100%;padding:12px 14px;border:3px solid #111;border-radius:14px;background:#fff;font-size:18px;font-weight:900;text-transform:none}
+.character-options{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.character-options button{display:flex;align-items:center;justify-content:center;padding:6px;min-height:48px;border:3px solid #111;border-radius:14px;background:#fff;cursor:pointer;font-size:24px;line-height:1;transition:transform .12s ease}
+.character-options button[aria-checked="true"]{background:#fff3b8;transform:scale(1.04)}
+.character-options button:focus-visible{outline:3px solid #4d96ff;outline-offset:2px}
+.color-option{width:40px;height:40px;border-radius:999px;border:3px solid #111;cursor:pointer}
+
+.timer-bar{position:relative;height:18px;margin:6px 0 14px;border:3px solid #111;border-radius:999px;background:#fff;overflow:hidden;box-shadow:3px 3px 0 rgba(0,0,0,.14)}
+.timer-bar__fill{position:absolute;left:0;top:0;bottom:0;width:100%;background:linear-gradient(90deg,#ffd447,#ff9f1c);transition:width .15s linear}
+.timer-bar__fill.danger{background:linear-gradient(90deg,#ff6b6b,#c0392b)}
+.timer-bar__label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:Inter,system-ui,sans-serif;font-size:11px;font-weight:900;color:#111;letter-spacing:.04em}
+
+.modifier-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:2px solid #111;border-radius:999px;background:#fff3b8;box-shadow:3px 3px 0 rgba(0,0,0,.14);font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:900;letter-spacing:.02em}
+.modifier-badge .modifier-badge__icon{font-size:14px;line-height:1}
+.modifier-badge .modifier-badge__name{font-size:12px;line-height:1}
+.host-modifiers{position:absolute;left:14px;bottom:14px;z-index:11;display:flex;flex-wrap:wrap;gap:8px;max-width:60%}
+.host-round-transition{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .35s ease}
+.host-round-transition.active{opacity:1}
+.host-round-transition__inner{text-align:center;color:#fff;font-family:"Lobster",cursive}
+.host-round-transition__label{font-family:Arial Black,Impact,sans-serif;font-size:clamp(20px,3vw,38px);letter-spacing:.16em;color:#ffd447;text-shadow:2px 2px 0 #000}
+.host-round-transition__number{font-family:"Lobster",cursive;font-size:clamp(96px,14vw,220px);line-height:1;color:#fff;text-shadow:4px 6px 0 rgba(255,212,71,.45)}
+.host-round-transition__mods{margin-top:18px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.host-round-transition__mods .modifier-badge{background:#fff3b8;color:#111}
+
+.settings-modifier-list{display:grid;gap:8px;margin-top:6px;padding:12px;border:3px dashed #111;border-radius:18px;background:#fffaf0}
+.settings-modifier-list .modifier-row{display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:10px;padding:8px 10px;border:2px solid #111;border-radius:14px;background:#fff;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:800}
+.settings-modifier-list .modifier-row[data-disabled="true"]{opacity:.45}
+.settings-modifier-list .modifier-row .modifier-row__icon{font-size:20px}
+.settings-modifier-list .modifier-row .modifier-row__name{font-weight:900}
+.settings-modifier-list .modifier-row .modifier-row__hint{font-size:11px;font-weight:700;color:#7a4a00;margin-top:2px}
+.settings-modifier-list .modifier-row input{width:20px;height:20px;margin:0}
+
+.answer-hint{margin-top:6px;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:800;color:#7a4a00}
+.answer-hint.error{color:#8a1212}
+
+.answer-question{margin:6px 0 4px;font-size:22px;line-height:1.15}
+.answer-meta{margin:0 0 10px;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:800}
+#playerAnswerInput{width:100%;min-height:120px;padding:14px;border:3px solid #111;border-radius:16px;background:#fff;font:inherit;font-size:18px;font-weight:800;resize:vertical;font-family:Inter,system-ui,sans-serif}
+
+.vote-stack{display:grid;gap:12px;margin-top:8px}
+.vote-stack .vote-card{display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;background:#fff;width:100%}
+.vote-stack .vote-card:hover:not([disabled]){background:#fff9df}
+.vote-stack .vote-card[data-chosen="true"]{background:#fff3b8;box-shadow:6px 7px 0 rgba(0,0,0,.18)}
+.vote-stack .vote-card[disabled]{cursor:default}
+.vote-stack .vote-card strong{font-size:14px;font-family:Inter,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.04em}
+.vote-stack .vote-card p{font-size:16px;line-height:1.25}
+
+.player-scoreboard{display:grid;gap:10px;margin-top:8px}
+.score-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border:3px solid #111;border-radius:16px;background:rgba(255,255,255,.96);font-family:Inter,system-ui,sans-serif;font-size:15px;font-weight:900;box-shadow:4px 5px 0 rgba(0,0,0,.12)}
+.score-row.winner{background:#fff3b8}
+.score-row .score-name{flex:1;min-width:0;word-break:break-word}
+.score-row .score-value{font-variant-numeric:tabular-nums}
+.score-row .score-delta{font-size:12px;color:#178514;font-weight:900}
+
+.stage-body{display:grid;gap:12px;margin-top:6px}
+.stage-vote-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stage-vote-pair .vote-card{padding:14px;border:3px solid #111;border-radius:18px;background:#fff;box-shadow:5px 6px 0 rgba(0,0,0,.14);min-height:140px;display:flex;flex-direction:column;gap:8px}
+.stage-vote-pair .vote-card.winner{background:#fff3b8}
+.stage-vote-pair .vote-author{display:flex;align-items:center;gap:8px;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:900}
+.stage-vote-pair .vote-text{font-size:18px;line-height:1.2;flex:1}
+.stage-vote-pair .vote-tally{display:flex;justify-content:space-between;align-items:center;font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:900}
+.stage-scoreboard{display:grid;gap:8px}
+.host-controls{position:absolute;right:14px;bottom:14px;display:flex;gap:8px;z-index:13}
+.host-controls .small-pill{cursor:pointer}
+
+.host-player .character-avatar{width:88px;height:88px;font-size:48px;box-shadow:3px 5px 0 rgba(0,0,0,.18)}
+
+@media (max-width:980px){
+  .character-avatar{width:80px;height:80px;font-size:42px}
+  .host-player .character-avatar{width:72px;height:72px;font-size:38px}
+  .stage-vote-pair{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .character-options{grid-template-columns:repeat(4,1fr)}
+  .host-player .character-avatar{width:62px;height:62px;font-size:32px}
+  .host-controls{right:10px;bottom:10px}
+}
+</style>
+</head>
+<body>
+<nav class="site-nav" aria-label="Главное меню">
+  <div class="brand">Pikuco</div>
+  <input class="mobile-toggle" type="checkbox" id="mobileNav">
+  <label class="hamburger" for="mobileNav" aria-label="Открыть меню"><span></span></label>
+  <div class="nav-links">
+    <a class="nav-link active" href="/klpp">Игра КЛПП</a>
+  </div>
+</nav>
+
+<button class="back-button" id="backButton" hidden aria-label="Назад">&larr;</button>
+
+<main>
+  <section class="screen screen-home" id="screenHome">
+    <section class="desktop-menu" aria-label="Главное меню КЛПП">
+      <div class="desktop-canvas">
+        <img class="asset cloud-main" src="/klpp-assets/cloud-doodle.png" alt="">
+        <img class="asset cloud-kto" src="/klpp-assets/cloud-white-small.png" alt="">
+        <img class="asset word word-kto" src="/klpp-assets/word-kto.png" alt="Кто">
+        <img class="asset word word-luchshe" src="/klpp-assets/word-luchshe.png" alt="Лучше">
+        <img class="asset word word-poshutit" src="/klpp-assets/word-poshutit.png" alt="Пошутит">
+        <img class="asset word word-pro" src="/klpp-assets/word-pro.png" alt="Про">
+
+        <button class="desktop-button has-pad btn-settings" id="desktopSettingsButton" type="button">
+          <span class="sr">Настройки</span>
+          <img class="pad" src="/klpp-assets/cloud-white-small.png" alt="">
+          <img class="normal" src="/klpp-assets/icon-cap.png" alt="">
+          <img class="alt" src="/klpp-assets/icon-beer-gear.png" alt="">
+        </button>
+
+        <button class="desktop-button btn-play" id="desktopPlayButton" type="button">
+          <span class="sr">Играть</span>
+          <img class="normal" src="/klpp-assets/icon-play-fire.png" alt="">
+          <img class="alt" src="/klpp-assets/icon-play-water.png" alt="">
+        </button>
+        <div class="desktop-role-split" id="desktopRoleSplit" hidden>
+          <button class="role-split-button player" id="desktopPlayerRoleButton" type="button">
+            <div class="role-icon">🎮</div>
+            <strong>Игрок</strong>
+            <span>Войти по коду комнаты</span>
+          </button>
+          <button class="role-split-button host" id="desktopHostRoleButton" type="button">
+            <div class="role-icon">🖥</div>
+            <strong>Хост</strong>
+            <span>Создать комнату и открыть хост-лобби</span>
+          </button>
+        </div>
+
+        <button class="desktop-button has-pad btn-packs" id="desktopPacksButton" type="button" hidden>
+          <span class="sr">Паки</span>
+          <img class="pad" src="/klpp-assets/cloud-white-small.png" alt="">
+          <img class="normal" src="/klpp-assets/icon-books.png" alt="">
+          <img class="alt" src="/klpp-assets/icon-books-fire.png" alt="">
+        </button>
+      </div>
+    </section>
+
+    <section class="mobile-menu" aria-label="Мобильное меню КЛПП">
+      <div class="mobile-collage">
+        <img class="asset m-cloud" src="/klpp-assets/cloud-doodle.png" alt="">
+        <img class="asset m-kto-cloud" src="/klpp-assets/cloud-white-small.png" alt="">
+        <img class="asset word m-kto" src="/klpp-assets/word-kto.png" alt="Кто">
+        <img class="asset word m-luchshe" src="/klpp-assets/word-luchshe.png" alt="Лучше">
+        <img class="asset word m-poshutit" src="/klpp-assets/word-poshutit.png" alt="Пошутит">
+        <img class="asset word m-pro" src="/klpp-assets/word-pro.png" alt="Про">
+
+        <div class="mobile-actions">
+          <button class="mobile-action primary" id="mobilePlayButton" type="button">
+            <img src="/klpp-assets/icon-play-fire.png" alt="">
+            <span><strong>Играть</strong><span>Выбрать роль</span></span>
+          </button>
+          <button class="mobile-action" id="mobileJoinButton" type="button">
+            <img src="/klpp-assets/icon-cap.png" alt="">
+            <span><strong>Настройки</strong><span>Раунды и вопросы</span></span>
+          </button>
+          <a class="mobile-action" href="/editor" hidden>
+            <img src="/klpp-assets/icon-books.png" alt="">
+            <span><strong>Паки</strong><span>Вопросы и раунды</span></span>
+          </a>
+        </div>
+        <div class="mobile-role-split" id="mobileRoleSplit" hidden>
+          <button class="role-split-button player" id="mobilePlayerRoleButton" type="button">
+            <div class="role-icon">🎮</div>
+            <strong>Игрок</strong>
+            <span>Ввести код и ник</span>
+          </button>
+          <button class="role-split-button host" id="mobileHostRoleButton" type="button">
+            <div class="role-icon">🖥</div>
+            <strong>Хост</strong>
+            <span>Создать комнату</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <section class="screen screen-settings" id="screenSettings" hidden>
+    <div class="settings-shell">
+      <div class="settings-card">
+        <h1>Настройки партии</h1>
+        <p>Здесь мы собираем нормальную играбельную демку: обычные раунды, таймеры, пакет вопросов и каплю хаоса.</p>
+        <form class="settings-grid" id="hostSettingsForm">
+          <label>Секунд на ответ
+            <input id="settingsAnswerSeconds" name="answerSeconds" type="number" min="20" max="180">
+          </label>
+          <label>Секунд на голос
+            <input id="settingsVoteSeconds" name="voteSeconds" type="number" min="15" max="120">
+          </label>
+          <label>Раундов
+            <select id="settingsRoundCount" name="roundCount">
+              <option value="3">3</option>
+              <option value="5">5</option>
+              <option value="7">7</option>
+            </select>
+          </label>
+          <label>Модификаторы
+            <select id="settingsModifierMode" name="modifierMode">
+              <option value="off">Выключены</option>
+              <option value="fixed">Фиксированные</option>
+              <option value="random">Случайно по раундам</option>
+            </select>
+          </label>
+          <label class="check-row wide"><input id="settingsSelfVotingEnabled" name="selfVotingEnabled" type="checkbox"><span>Разрешить голосовать в своём вопросе</span></label>
+          <label class="check-row wide"><input id="settingsAnonymousAnswers" name="anonymousAnswers" type="checkbox"><span>Анонимные ответы (имена раскрываются после голосования)</span></label>
+          <label class="check-row wide"><input id="settingsDoublePointsLastRound" name="doublePointsLastRound" type="checkbox"><span>Двойные очки в финальном раунде</span></label>
+          <div class="wide" id="settingsModifierList" hidden></div>
+          <div class="wide settings-save-row">
+            <button class="cta secondary" id="hostSaveSettingsButton" type="submit">Сохранить настройки</button>
+          </div>
+        </form>
+        <div class="settings-note" id="hostSettingsStatus"></div>
+      </div>
+      <div class="settings-screen-note">Эти настройки становятся черновиком для новых комнат. Хост берёт их с собой, когда создаёт свежую партию.</div>
+    </div>
+  </section>
+
+  <section class="screen screen-host" id="screenHost" hidden>
+    <div class="host-shell">
+      <div class="host-scene">
+        <img class="host-trash" src="/klpp-assets/lobby/trash.png" alt="">
+        <img class="host-cloud" src="/klpp-assets/lobby/room-cloud.png" alt="">
+        <div class="host-scene-overlay" id="hostSceneOverlay"></div>
+        <div class="host-qr-card"><img id="qrImage" alt="QR код для входа"></div>
+        <div class="host-room-code" id="hostRoomCode">----</div>
+        <div class="host-room-copy">
+          <div class="small-pill" id="hostPlayersCount">0 игроков</div>
+          <button class="small-pill host-copy-link" id="copyJoinLinkButton" type="button">Копировать ссылку</button>
+        </div>
+        <div class="host-caption">Сканируйте QR или вбивайте код комнаты. Сейчас это только хост-лобби: игроки заходят, появляются на экране и ждут следующую сборку.</div>
+        <section class="host-panel" id="hostLobbyPanel">
+          <h2 class="panel-title">Лобби ведущего</h2>
+          <p class="panel-copy" id="hostLobbyCopy">Комната живая. Owner может стартовать с телефона как только наберётся 3 игрока.</p>
+          <div class="lobby-summary" id="hostLobbySummary"></div>
+        </section>
+        <section class="stage-panel" id="hostStagePanel" hidden>
+          <div class="stage-meta" id="hostStageMeta"></div>
+          <p class="stage-prompt" id="hostStagePrompt"></p>
+          <div class="timer-bar" id="hostStageTimer" hidden>
+            <div class="timer-bar__fill" id="hostStageTimerFill"></div>
+            <span class="timer-bar__label" id="hostStageTimerLabel">0</span>
+          </div>
+          <div class="stage-body" id="hostStageBody"></div>
+        </section>
+        <div class="host-players" id="hostPlayersLayer"></div>
+        <div class="host-modifiers" id="hostModifiers" hidden></div>
+        <div class="host-round-transition" id="hostRoundTransition" hidden>
+          <div class="host-round-transition__inner">
+            <div class="host-round-transition__label">РАУНД</div>
+            <div class="host-round-transition__number" id="hostRoundTransitionNumber">1</div>
+            <div class="host-round-transition__mods" id="hostRoundTransitionMods"></div>
+          </div>
+        </div>
+        <div class="host-controls" id="hostControls" hidden>
+          <button class="small-pill" id="hostPauseButton" type="button">Пауза</button>
+          <button class="small-pill" id="hostEndButton" type="button">Закончить</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen screen-join" id="screenJoin" hidden>
+    <div class="join-shell">
+            <div class="join-card">
+        <h1>Войти</h1>
+        <p>Впиши код комнаты и свой ник, а дальше тебя добросит в лобби.</p>
+        <form class="field-stack" id="joinForm">
+          <label>Код комнаты
+            <input id="joinRoomInput" name="room" maxlength="8" autocomplete="one-time-code" placeholder="ABCD" required>
+          </label>
+          <label>Ник
+            <input id="joinNickInput" name="nick" maxlength="32" autocomplete="nickname" placeholder="Например, Лысый Шутник" required>
+          </label>
+          <div class="cta-row">
+            <button class="cta" type="submit">Зайти в лобби</button>
+            <button class="cta secondary" id="joinDemoRoomButton" type="button">Создать свою комнату</button>
+          </div>
+        </form>
+        <div class="join-error" id="joinError"></div>
+      </div>
+      <div class="join-hill-note">Если QR на большом экране не открывается с телефона, просто введи код комнаты вручную. Для демо это тоже работает.</div>
+    </div>
+  </section>
+
+  <section class="screen screen-player" id="screenPlayer" hidden>
+    <div class="player-shell">
+      <div class="player-card">
+        <div class="status-banner" id="playerStatusBanner">Комната</div>
+        <h1 id="playerTitle">Ждём</h1>
+        <p id="playerSubtitle">Подключаемся к комнате.</p>
+
+        <div class="timer-bar" id="playerTimerBar" hidden>
+          <div class="timer-bar__fill" id="playerTimerFill"></div>
+          <span class="timer-bar__label" id="playerTimerLabel">0</span>
+        </div>
+
+        <div class="character-editor" id="playerCharacterEditor" hidden>
+          <div class="character-preview">
+            <div class="character-avatar" id="characterAvatarPreview" aria-hidden="true"></div>
+            <div class="character-preview__name" id="characterPreviewName">Игрок</div>
+          </div>
+          <label class="character-field">
+            <span>Имя в игре</span>
+            <input id="characterNicknameInput" type="text" maxlength="20" autocomplete="off" placeholder="Лысый шутник">
+          </label>
+          <div class="character-field">
+            <span>Цвет</span>
+            <div class="character-options" id="characterColorOptions" role="radiogroup" aria-label="Цвет"></div>
+          </div>
+          <div class="character-field">
+            <span>Лицо</span>
+            <div class="character-options" id="characterFaceOptions" role="radiogroup" aria-label="Лицо"></div>
+          </div>
+        </div>
+
+        <div class="cta-row" id="playerCtaRow"></div>
+
+        <form class="field-stack" id="playerAnswerForm" hidden>
+          <p class="answer-question" id="playerAnswerQuestion"></p>
+          <p class="answer-meta" id="playerAnswerMeta"></p>
+          <label>
+            <span class="sr">Твой ответ</span>
+            <textarea id="playerAnswerInput" maxlength="220" placeholder="Напиши самую смешную правду" required></textarea>
+          </label>
+          <div class="answer-hint" id="playerAnswerHint" hidden></div>
+          <div class="cta-row">
+            <button class="cta" type="submit" id="playerAnswerSubmit">Отправить</button>
+          </div>
+        </form>
+
+        <div class="vote-stack" id="playerVoteList" hidden></div>
+
+        <div class="player-scoreboard" id="playerScoreboard" hidden></div>
+
+        <div class="player-message player-wait" id="playerMessage">Подключаемся.</div>
+        <div class="player-list" id="playerList"></div>
+      </div>
+      <div class="player-hill-note">Первый зашедший игрок становится owner — только он может запустить игру.</div>
+    </div>
+  </section>
+</main>
+
+<script src="/klpp-client.js?v=lobby-only-1"></script>
+</body>
+</html>
+
+
+
+
+
+
