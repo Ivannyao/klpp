@@ -768,7 +768,7 @@
   var prevHostState = "";
   function checkWaveTransition(snap) {
     if (state.view !== "host") return;
-    if (prevHostState === "answer" && snap.state === "vote") {
+    if (prevHostState === "answer" && (snap.state === "vote" || snap.state === "vote_result")) {
       var wave = document.getElementById("hostWaveTransition");
       if (wave) {
         wave.classList.remove("active");
