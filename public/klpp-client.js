@@ -720,7 +720,7 @@
 
     var inLobby = snap.state === "lobby";
     els.hostLobbyPanel.hidden = !inLobby;
-    els.hostStagePanel.hidden = inLobby || inAnswer;
+    els.hostStagePanel.hidden = inLobby || snap.state === "answer";
 
     if(inLobby){
       els.hostLobbyCopy.textContent = snap.players.length < snap.minPlayersToStart
