@@ -135,6 +135,9 @@ Quick-tunnel выдаёт случайный домен `xxx.trycloudflare.com`.
 - ✅ Visibility-based polling pause
 - ✅ Pause/resume (хост, hostKey-gated, сохраняет remaining timer)
 - ✅ 404 на player view → редирект на /join
+- ✅ Cinematic Host Redesign: Lobby, Answer phase (ocean video bg, floating avatars), Voting phase (circular timer, high-z cards), Scoreboard (curtains, podium), Round intro (radial gradient stamp).
+- ✅ Wave transition between Answer and Vote phases.
+- ✅ Fixed ReferenceError in klpp-client.js and CSS z-index conflicts.
 
 ## Что осталось
 
@@ -152,11 +155,11 @@ Quick-tunnel выдаёт случайный домен `xxx.trycloudflare.com`.
 - Отдельный UI для лидера с 10-секундным таймером выбора из 3 случайных
 
 **Итерация 5 (host screen redesign):**
-- Cinematic lobby с smart positioning без перекрытий
-- Answer phase: иконки внизу, «улетают» наверх при ответе
-- Voting screen: timer в круге, большой вопрос
-- Scoreboard с театральными кулисами + подиум
-- Round transition: переработка чёрного экрана
+- ✅ Cinematic lobby с smart positioning без перекрытий
+- ✅ Answer phase: иконки внизу, «улетают» наверх при ответе (и видео-фон `ocean.mp4`)
+- ✅ Voting screen: timer в круге, большой вопрос
+- ✅ Scoreboard с театральными кулисами + подиум
+- ✅ Round transition: переработка чёрного экрана (радиальный градиент + штамп)
 
 ## Известные ограничения
 
