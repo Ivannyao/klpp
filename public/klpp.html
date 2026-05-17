@@ -40,10 +40,10 @@ img{display:block;max-width:100%}
 .cloud-main{left:50%;top:4.8%;width:61.4%;transform:translateX(-50%);filter:drop-shadow(0 8px 0 rgba(0,0,0,.12));z-index:2}
 .cloud-kto{left:15.7%;top:11.1%;width:17.8%;rotate:-6deg;filter:drop-shadow(0 6px 0 rgba(0,0,0,.14));z-index:3}
 .word{z-index:4;filter:drop-shadow(4px 7px 0 rgba(0,0,0,.20))}
-.word-kto{left:13.5%;top:10.9%;width:25.1%;rotate:-8deg;z-index:6;animation:kto-jitter 1.08s steps(12,end) infinite}
-.word-luchshe{left:20.9%;top:21.9%;width:25.2%;z-index:4;animation:luchshe-jitter 1.33s steps(12,end) infinite}
-.word-poshutit{left:34%;top:32.8%;width:24.2%;z-index:5;animation:poshutit-jitter .92s steps(12,end) infinite}
-.word-pro{left:49.5%;top:43%;width:15.4%;z-index:4;filter:drop-shadow(3px 6px 0 rgba(0,0,0,.16));animation:pro-jitter 1.18s steps(12,end) infinite}
+.word-kto{left:13.5%;top:10.9%;width:25.1%;rotate:-8deg;z-index:6;animation:kto-float 4.4s ease-in-out infinite}
+.word-luchshe{left:20.9%;top:21.9%;width:25.2%;z-index:4;animation:luchshe-float 5.2s ease-in-out infinite}
+.word-poshutit{left:34%;top:32.8%;width:24.2%;z-index:5;animation:poshutit-float 4.8s ease-in-out infinite}
+.word-pro{left:49.5%;top:43%;width:15.4%;z-index:4;filter:drop-shadow(3px 6px 0 rgba(0,0,0,.16));animation:pro-float 5.6s ease-in-out infinite}
 
 .desktop-button{position:absolute;z-index:8;border:0;background:transparent;padding:0;cursor:pointer;transition:transform .16s ease;filter:drop-shadow(0 8px 0 rgba(0,0,0,.18))}
 .desktop-button img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transition:opacity .14s ease}
@@ -52,6 +52,16 @@ img{display:block;max-width:100%}
 .desktop-button .alt{opacity:0}
 .desktop-button:hover,.desktop-button:focus-visible{transform:scale(1.16) rotate(-4deg)}
 .desktop-button:hover .normal,.desktop-button:focus-visible .normal{opacity:0}
+
+/* Spinning cap on the Settings button (uses independent `rotate:` so it doesn't fight the existing translate transform) */
+.btn-settings .normal{animation:cap-spin 10s linear infinite;transform-origin:50% 50%}
+@keyframes cap-spin{from{rotate:0deg}to{rotate:360deg}}
+
+/* Play button: continuous fire ↔ water crossfade, no hover required */
+.btn-play .normal{animation:play-fire 3.4s ease-in-out infinite}
+.btn-play .alt{animation:play-water 3.4s ease-in-out infinite}
+@keyframes play-fire{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes play-water{0%,100%{opacity:0}50%{opacity:1}}
 .desktop-button:hover .alt,.desktop-button:focus-visible .alt{opacity:1}
 .btn-settings{left:16.6%;top:51.8%;width:18.9%;height:18.3%}
 .btn-play{left:45.7%;top:65.6%;width:10.4%;height:22.3%}
@@ -164,10 +174,10 @@ img{display:block;max-width:100%}
 }
 
 @keyframes spin-rays{to{transform:translate(-50%,-50%) rotate(360deg)}}
-@keyframes kto-jitter{0%,100%{translate:0 0;rotate:-8deg}18%{translate:2px -1px;rotate:-6.7deg}43%{translate:-1px 2px;rotate:-9.6deg}67%{translate:1px 0;rotate:-7.4deg}84%{translate:-2px -1px;rotate:-8.8deg}}
-@keyframes luchshe-jitter{0%,100%{translate:0 0;rotate:0deg}16%{translate:-2px 1px;rotate:-.7deg}39%{translate:1px -2px;rotate:1.1deg}61%{translate:2px 0;rotate:-1.3deg}88%{translate:-1px -1px;rotate:.5deg}}
-@keyframes poshutit-jitter{0%,100%{translate:0 0;rotate:0deg}21%{translate:1px 2px;rotate:1.4deg}48%{translate:-2px 0;rotate:-.8deg}72%{translate:2px -1px;rotate:.4deg}91%{translate:-1px 1px;rotate:-1.1deg}}
-@keyframes pro-jitter{0%,100%{translate:0 0;rotate:0deg}14%{translate:2px 1px;rotate:.8deg}36%{translate:-2px -1px;rotate:-1.5deg}58%{translate:1px -2px;rotate:1.2deg}79%{translate:-1px 1px;rotate:-.4deg}}
+@keyframes kto-float{0%,100%{translate:0 0;rotate:-8deg}50%{translate:0 -8px;rotate:-6.5deg}}
+@keyframes luchshe-float{0%,100%{translate:0 0;rotate:0deg}50%{translate:0 -9px;rotate:1.2deg}}
+@keyframes poshutit-float{0%,100%{translate:0 0;rotate:0deg}50%{translate:0 -7px;rotate:-1.4deg}}
+@keyframes pro-float{0%,100%{translate:0 0;rotate:0deg}50%{translate:0 -6px;rotate:1.6deg}}
 @keyframes fly-from-sky{
   0%{left:var(--start-x);top:var(--start-y);transform:translate(-50%,-50%) scale(calc(var(--target-scale, 1) * .12)) rotate(-16deg);opacity:0}
   18%{left:var(--start-x);top:var(--start-y);transform:translate(-50%,-50%) scale(calc(var(--target-scale, 1) * .28)) rotate(-14deg);opacity:0}
@@ -212,10 +222,10 @@ img{display:block;max-width:100%}
   .mobile-collage{position:relative;width:min(calc(100vw - 32px),420px);max-width:100%;min-height:700px}
   .m-cloud{position:absolute;left:50%;top:118px;width:min(108%,430px);transform:translateX(-50%);filter:drop-shadow(0 8px 0 rgba(0,0,0,.15));z-index:2}
   .m-kto-cloud{left:8%;top:76px;width:30%;rotate:-6deg;filter:drop-shadow(0 6px 0 rgba(0,0,0,.14));z-index:3}
-  .m-kto{left:5%;top:66px;width:40%;rotate:-9deg;z-index:6;animation:kto-jitter 1.08s steps(12,end) infinite}
-  .m-luchshe{left:31%;top:210px;width:47%;z-index:5;animation:luchshe-jitter 1.33s steps(12,end) infinite}
-  .m-poshutit{left:23%;top:284px;width:45%;z-index:5;animation:poshutit-jitter .92s steps(12,end) infinite}
-  .m-pro{right:14%;top:346px;width:27%;z-index:4;animation:pro-jitter 1.18s steps(12,end) infinite}
+  .m-kto{left:5%;top:66px;width:40%;rotate:-9deg;z-index:6;animation:kto-float 4.4s ease-in-out infinite}
+  .m-luchshe{left:31%;top:210px;width:47%;z-index:5;animation:luchshe-float 5.2s ease-in-out infinite}
+  .m-poshutit{left:23%;top:284px;width:45%;z-index:5;animation:poshutit-float 4.8s ease-in-out infinite}
+  .m-pro{right:14%;top:346px;width:27%;z-index:4;animation:pro-float 5.6s ease-in-out infinite}
   .mobile-actions{position:absolute;left:0;right:0;top:438px;width:100%;display:grid;gap:12px;z-index:6}
   .mobile-role-split{position:absolute;left:0;right:0;top:438px;display:grid;grid-template-columns:1fr 1fr;gap:12px;z-index:8}
   .mobile-role-split .role-split-button{width:auto;min-height:156px}
