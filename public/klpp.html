@@ -68,35 +68,23 @@ img{display:block;max-width:100%}
 }
 
 /* Play button: hover still swaps fire ↔ water (unchanged).
-   On top of that we layer real fire effects on top of the original PNG:
-     1) fire-flicker on the .normal img → tight edge glow + scale pulse
-     2) ::before halo behind the button → soft hot ring that breathes
-     3) ::after spark particles → small embers drifting upward
-   All three are visible only while showing fire — hover/focus hides
-   the pseudo-element effects so the water state stays clean. */
-.btn-play{position:absolute;isolation:isolate}
-.btn-play .normal{animation:fire-flicker 1.4s ease-in-out infinite}
+   Each icon has its own hand-keyframed motion. No glow, no halo, no
+   sparks, no filters — pure frame-by-frame transform on the image itself.
+   Fire keyframes are intentionally irregular (every ~12% step) to mimic
+   live flame motion instead of a uniform pulse. */
+.btn-play .normal{animation:fire-dance 2.4s ease-in-out infinite}
 .btn-play .alt{animation:water-waves 3.2s ease-in-out infinite}
 
-@keyframes fire-flicker{
-  0%,100%{transform:scale(1)   rotate(0deg);   filter:brightness(1.05) saturate(1.1)
-            drop-shadow(0 0  6px rgba(255,170,40,.7))
-            drop-shadow(0 0 14px rgba(255,100,20,.45))
-            drop-shadow(0 0 26px rgba(255, 60, 10,.25))}
-  20%    {transform:scale(1.05) rotate(-1.6deg);filter:brightness(1.25) saturate(1.25)
-            drop-shadow(0 0 10px rgba(255,200,70,.85))
-            drop-shadow(0 0 22px rgba(255,130,30,.6))
-            drop-shadow(0 0 38px rgba(255, 80, 10,.4))}
-  40%    {transform:scale(.96)  rotate(.6deg);  filter:brightness(.95)  saturate(1)
-            drop-shadow(0 0  5px rgba(255,140,30,.55))
-            drop-shadow(0 0 12px rgba(255, 80, 20,.35))}
-  60%    {transform:scale(1.07) rotate(1.8deg); filter:brightness(1.3)  saturate(1.3)
-            drop-shadow(0 0 12px rgba(255,220,90,.95))
-            drop-shadow(0 0 26px rgba(255,140,40,.65))
-            drop-shadow(0 0 44px rgba(255, 90, 20,.45))}
-  80%    {transform:scale(1.02) rotate(-.8deg); filter:brightness(1.1)  saturate(1.15)
-            drop-shadow(0 0  8px rgba(255,180,50,.75))
-            drop-shadow(0 0 18px rgba(255,110,25,.5))}
+@keyframes fire-dance{
+  0%   {transform:translate(0,    0)    scale(1)    rotate(0deg)}
+  12%  {transform:translate(-1px, -2px) scale(1.05) rotate(-1.5deg)}
+  24%  {transform:translate(1px,  -1px) scale(.97)  rotate(.8deg)}
+  36%  {transform:translate(0,    -3px) scale(1.07) rotate(-2deg)}
+  48%  {transform:translate(-2px, -1px) scale(1.02) rotate(1.5deg)}
+  60%  {transform:translate(1px,   0)   scale(.96)  rotate(-.5deg)}
+  72%  {transform:translate(0,    -2px) scale(1.08) rotate(2deg)}
+  84%  {transform:translate(-1px, -1px) scale(1.03) rotate(-1deg)}
+  100% {transform:translate(0,    0)    scale(1)    rotate(0deg)}
 }
 @keyframes water-waves{
   0%,100%{transform:translateY(0)    rotate(0deg)   skewX(0deg)}
@@ -104,51 +92,6 @@ img{display:block;max-width:100%}
   50%    {transform:translateY(2px)  rotate(0deg)   skewX(0deg)}
   75%    {transform:translateY(-2px) rotate(1.5deg) skewX(-2deg)}
 }
-
-/* Halo: soft hot glow behind the whole button. Hidden behind icon via z-index */
-.btn-play::before{
-  content:"";position:absolute;inset:-28%;z-index:-1;pointer-events:none;
-  background:radial-gradient(circle at 50% 60%,
-    rgba(255,210,80,.75) 0%,
-    rgba(255,140,30,.55) 25%,
-    rgba(255, 70, 20,.35) 45%,
-    transparent 70%);
-  filter:blur(10px);
-  animation:fire-halo 1.6s ease-in-out infinite;
-  transition:opacity .25s ease;
-}
-@keyframes fire-halo{
-  0%,100%{transform:scale(1)    rotate(0deg);opacity:.7}
-  50%    {transform:scale(1.18) rotate(2deg); opacity:1}
-}
-
-/* Sparks: five small ember-like dots animated upward + fading.
-   Different sizes/positions/timings so it feels organic. */
-.btn-play::after{
-  content:"";position:absolute;inset:0;z-index:2;pointer-events:none;
-  background-image:
-    radial-gradient(circle at 22% 90%, rgba(255,235,140,1) 0,  rgba(255,180, 60,.55) 1.5px, transparent 3px),
-    radial-gradient(circle at 52% 96%, rgba(255,245,170,1) 0,  rgba(255,200, 80,.6)  1.2px, transparent 2.5px),
-    radial-gradient(circle at 78% 88%, rgba(255,220,100,1) 0,  rgba(255,160, 40,.5)  1.8px, transparent 3.5px),
-    radial-gradient(circle at 37% 100%, rgba(255,250,200,1) 0, transparent 2px),
-    radial-gradient(circle at 66% 100%, rgba(255,230,120,1) 0, transparent 2.2px);
-  background-size:100% 220%;
-  background-repeat:no-repeat;
-  mix-blend-mode:screen;
-  filter:blur(.4px);
-  animation:fire-sparks 2.4s linear infinite;
-  transition:opacity .25s ease;
-}
-@keyframes fire-sparks{
-  0%   {background-position:0% 0%,   0% 0%,    0% 0%,   0% 0%,    0% 0%;    opacity:0}
-  10%  {opacity:1}
-  85%  {opacity:.6}
-  100% {background-position:0% -110%, 4% -125%, -3% -115%, 1% -135%, -2% -120%; opacity:0}
-}
-
-/* Hide fire halo & sparks when hovering (water state) */
-.btn-play:hover::before, .btn-play:focus-visible::before,
-.btn-play:hover::after,  .btn-play:focus-visible::after{opacity:0}
 
 .desktop-button:hover .alt,.desktop-button:focus-visible .alt{opacity:1}
 .btn-settings{left:16.6%;top:51.8%;width:18.9%;height:18.3%}
