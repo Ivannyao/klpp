@@ -53,6 +53,11 @@ img{display:block;max-width:100%}
 .desktop-button:hover,.desktop-button:focus-visible{transform:scale(1.16) rotate(-4deg)}
 .desktop-button:hover .normal,.desktop-button:focus-visible .normal{opacity:0}
 
+/* The beer-gear PNG (157x177) is taller than the cap PNG (162x162) and its
+   content sits a bit higher inside the canvas, so by default the gear lands
+   above the cap when swapping. Grow it slightly and nudge down to overlap. */
+.btn-settings .alt{width:62%;height:74%;transform:translate(-50%,-46%)}
+
 .desktop-button:hover .alt,.desktop-button:focus-visible .alt{opacity:1}
 .btn-settings{left:16.6%;top:51.8%;width:18.9%;height:18.3%}
 .btn-play{left:45.7%;top:65.6%;width:10.4%;height:22.3%}
