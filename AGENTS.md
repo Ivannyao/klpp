@@ -141,6 +141,11 @@ Quick-tunnel выдаёт случайный домен `xxx.trycloudflare.com`.
 - ✅ Cinematic Host Redesign: Lobby, Answer phase (ocean video bg, floating avatars), Voting phase (circular timer, high-z cards), Scoreboard (curtains, podium), Round intro (radial gradient stamp).
 - ✅ Wave transition between Answer and Vote phases.
 - ✅ Fixed ReferenceError in klpp-client.js and CSS z-index conflicts.
+- ✅ **Итерация 4: Способности лидера и Вечеринка способностей (Вариант В):**
+  - ✅ **Инвентарь способностей (Held Abilities):** При выборе суперспособность сохраняется в `heldAbility` и не тратится автоматически.
+  - ✅ **Ручная активация способностей:** Игрок имеет виджет активации над формой ввода ответа, активирующий способность в `activeAbility` в любой момент фазы ответов.
+  - ✅ **Интерактивные суперспособности:** «Заморозка времени» (+25с), «Сокращение времени» (до 20с), «Обмен вопросами», «Вступить в бой» (+50% очков) и «Шпионаж» (реальное время).
+  - ✅ **Умный выбор и перенос:** Непотраченная способность переносится на следующий раунд (предлагается «Оставить текущую» + 2 новых на замену). Потраченная способность сгорает и открывает 3 новых случайных варианта.
 
 ## Что осталось
 
@@ -151,11 +156,6 @@ Quick-tunnel выдаёт случайный домен `xxx.trycloudflare.com`.
 **Итерация 3 (сложные модификаторы):**
 - `reverse_round` — структура «готовых ответов», игроки придумывают вопрос
 - `blind_round` — БД grammar hints для вопросов («кто?», «место», «действие»)
-
-**Итерация 4 (leader abilities):**
-- Новая фаза `ability_select` после round_score
-- 5 способностей: Freeze timer, Reduce timer, Swap questions, Join the battle, Spy
-- Отдельный UI для лидера с 10-секундным таймером выбора из 3 случайных
 
 **Итерация 5 (host screen redesign):**
 - ✅ Cinematic lobby с smart positioning без перекрытий
