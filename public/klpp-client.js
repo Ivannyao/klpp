@@ -1065,7 +1065,7 @@
       if (hostVoteSunburst) hostVoteSunburst.hidden = true;
     }
 
-    var hideLobbyStuff = inAnswer || inVote || (state === "ability_select");
+    var hideLobbyStuff = inAnswer || inVote;
     if (qrCard) qrCard.style.display = hideLobbyStuff ? "none" : "";
     if (roomCode) roomCode.style.display = hideLobbyStuff ? "none" : "";
     if (roomCopy) roomCopy.style.display = hideLobbyStuff ? "none" : "";
@@ -1354,27 +1354,29 @@
     }
 
     var isAnswerPhase = stateName === "answer";
-    var hasPending = isAnswerPhase && viewer.currentAssignment;
+    var hasAbilities = isAnswerPhase && snap.abilitySelect;
+    var hasPending = isAnswerPhase && viewer.currentAssignment && !hasAbilities;
     els.playerAnswerForm.hidden = !hasPending;
     els.playerVoteList.hidden = !(stateName === "vote" && viewer.vote);
     els.playerScoreboard.hidden = !(stateName === "round_score" || stateName === "finished" || stateName === "vote_result");
-    var isAbilitySelectPhase = stateName === "ability_select";
-    els.playerAbilitySelect.hidden = !isAbilitySelectPhase;
+    els.playerAbilitySelect.hidden = !hasAbilities;
 
     if(inLobby){
       renderPlayerLobby(snap);
     } else if(stateName === "launch" || stateName === "round_intro"){
       renderPlayerInterstitial(snap);
     } else if(isAnswerPhase){
-      renderPlayerAnswer(snap);
+      if(hasAbilities){
+        renderPlayerAbilitySelect(snap);
+      } else {
+        renderPlayerAnswer(snap);
+      }
     } else if(stateName === "vote"){
       renderPlayerVote(snap);
     } else if(stateName === "vote_result"){
       renderPlayerVoteResult(snap);
     } else if(stateName === "round_score"){
       renderPlayerScoreboard(snap, false);
-    } else if(stateName === "ability_select"){
-      renderPlayerAbilitySelect(snap);
     } else if(stateName === "finished"){
       renderPlayerScoreboard(snap, true);
     } else if(stateName === "paused"){
@@ -1625,10 +1627,11 @@
     try {
       await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/ability", {
         method: "POST",
-        body: {
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
           clientId: state.clientId,
           abilityId: abilityId
-        }
+        })
       });
       klppAudio.click();
     } catch(error) {
