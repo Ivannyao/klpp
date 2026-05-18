@@ -1097,13 +1097,19 @@
       prompt = "Раунд " + snap.currentRound.roundNumber;
       body = "<p class=\"panel-copy\">" + escapeHtml(snap.currentRound.introText || "Поехали!") + "</p>";
     } else if(state === "answer" && snap.currentRound){
-      prompt = "Игроки пишут ответы на своих вопросах";
+      var isReverse = snap.currentRound && snap.currentRound.type === "reverse";
+      var isBlind = !isReverse && snap.activeModifiers && snap.activeModifiers.some(function(m){ return m && m.id === "blind_round"; });
+      if(isReverse) prompt = "❓ Игроки придумывают вопрос к ответу";
+      else if(isBlind) prompt = "🙈 Слепой раунд — только подсказка категории";
+      else prompt = "Игроки пишут ответы на своих вопросах";
       body = "<p class=\"panel-copy\">Каждый игрок отвечает на свои пары. На большом экране результаты появятся, когда все закончат.</p>";
     } else if(state === "vote" && snap.currentVote){
-      prompt = snap.currentVote.questionText;
+      var isRev = Boolean(snap.currentVote.isReverse);
+      prompt = isRev ? ("❓ Ответ: " + snap.currentVote.questionText) : snap.currentVote.questionText;
       body = renderHostVotePair(snap.currentVote, snap, false);
     } else if(state === "vote_result" && snap.currentVote){
-      prompt = snap.currentVote.questionText;
+      var isRev = Boolean(snap.currentVote.isReverse);
+      prompt = isRev ? ("❓ Ответ: " + snap.currentVote.questionText) : snap.currentVote.questionText;
       body = renderHostVotePair(snap.currentVote, snap, true);
     } else if(state === "round_score" && snap.lastRoundResult){
       prompt = snap.lastRoundResult.title || ("Раунд " + snap.lastRoundResult.roundNumber);
@@ -1136,13 +1142,18 @@
     var rightAuthor = lookupPlayer(snap, vote.rightClientId);
     var leftWinner = showResult && vote.result && vote.result.leftPercent > vote.result.rightPercent;
     var rightWinner = showResult && vote.result && vote.result.rightPercent > vote.result.leftPercent;
-    return '<div class="stage-vote-pair">' +
-      voteCardForHost(vote, snap, "left", leftAuthor, showResult, leftWinner) +
-      voteCardForHost(vote, snap, "right", rightAuthor, showResult, rightWinner) +
+    var isReverse = Boolean(vote.isReverse);
+    var prefix = isReverse
+      ? '<p class="panel-copy" style="font-size:0.9em;opacity:0.75;margin-bottom:6px">' +
+        '❓ Голосуйте за лучший <strong>вопрос</strong> к этому ответу</p>'
+      : '';
+    return prefix + '<div class="stage-vote-pair">' +
+      voteCardForHost(vote, snap, "left", leftAuthor, showResult, leftWinner, isReverse) +
+      voteCardForHost(vote, snap, "right", rightAuthor, showResult, rightWinner, isReverse) +
     '</div>' + (showResult ? renderHostVoteResultLine(vote.result) : '<p class="panel-copy" style="margin-top:10px">Голосуют только зрители. ' + (snap.settings.selfVotingEnabled ? "Авторы тоже." : "Авторы — нет.") + "</p>");
   }
 
-  function voteCardForHost(vote, snap, side, author, showResult, isWinner){
+  function voteCardForHost(vote, snap, side, author, showResult, isWinner, isReverse){
     var text = side === "left" ? vote.leftText : vote.rightText;
     var missing = side === "left" ? vote.leftMissing : vote.rightMissing;
     var pct = vote.result ? (side === "left" ? vote.result.leftPercent : vote.result.rightPercent) : null;
@@ -1152,9 +1163,10 @@
     var authorName = hideAuthor
       ? escapeHtml(side === "left" ? (vote.leftNickname || "Игрок А") : (vote.rightNickname || "Игрок Б"))
       : (author ? escapeHtml(author.nickname) : escapeHtml(side === "left" ? (vote.leftNickname || "Игрок") : (vote.rightNickname || "Игрок")));
+    var reverseLabel = isReverse ? '<div style="font-size:0.72em;opacity:0.65;margin-bottom:3px">❓ Вопрос:</div>' : '';
     return '<div class="vote-card' + (isWinner ? " winner" : "") + '">' +
       '<div class="vote-author">' + avatarHtml + '<span>' + authorName + '</span></div>' +
-      '<div class="vote-text">' + (missing ? '<em style="opacity:.7">НЕТ ОТВЕТА</em>' : escapeHtml(text)) + '</div>' +
+      '<div class="vote-text">' + reverseLabel + (missing ? '<em style="opacity:.7">НЕТ ОТВЕТА</em>' : escapeHtml(text)) + '</div>' +
       (showResult ? '<div class="vote-tally"><span>' + (pct == null ? 0 : pct) + "%</span><span>+" + (delta || 0) + "</span></div>" : "") +
     '</div>';
   }
@@ -1413,9 +1425,26 @@
     var done = Math.min(viewer.answeredCount || 0, total);
     els.playerCtaRow.innerHTML = "";
     if(assignment){
-      els.playerTitle.textContent = "Твой вопрос";
-      els.playerSubtitle.textContent = (done + 1) + " из " + total;
-      els.playerAnswerQuestion.textContent = assignment.questionText;
+      var isReverse = Boolean(assignment.isReverse);
+      var isBlind = Boolean(assignment.isBlind);
+      if(isReverse){
+        els.playerTitle.textContent = "❓ Придумай вопрос";
+        els.playerSubtitle.textContent = "Ответ уже есть — придумай к нему смешной вопрос!";
+        // Show the punchline prominently as the "prompt"
+        els.playerAnswerQuestion.innerHTML =
+          '<div style="font-size:0.75em;opacity:0.7;margin-bottom:6px">Готовый ответ:</div>' +
+          '<div style="font-size:1.1em;font-weight:700;color:var(--accent,#ffd447)">' + escapeHtml(assignment.questionText) + '</div>';
+      } else if(isBlind){
+        els.playerTitle.textContent = "🙈 Слепой раунд";
+        els.playerSubtitle.textContent = (done + 1) + " из " + total + " — видна только подсказка";
+        els.playerAnswerQuestion.innerHTML =
+          '<div style="font-size:0.75em;opacity:0.7;margin-bottom:6px">Категория:</div>' +
+          '<div style="font-size:2em;font-weight:900;letter-spacing:2px;color:var(--accent,#ffd447)">' + escapeHtml(assignment.displayText) + '</div>';
+      } else {
+        els.playerTitle.textContent = "Твой вопрос";
+        els.playerSubtitle.textContent = (done + 1) + " из " + total;
+        els.playerAnswerQuestion.textContent = assignment.questionText;
+      }
       els.playerAnswerMeta.textContent = "";
       els.playerMessage.hidden = true;
     } else {
@@ -1432,8 +1461,15 @@
     var viewer = snap.viewer;
     var vote = viewer.vote;
     if(!vote){ els.playerVoteList.innerHTML = ""; return; }
-    els.playerTitle.textContent = "Кто смешнее?";
-    els.playerSubtitle.textContent = vote.questionText;
+    var isReverse = Boolean(vote.isReverse);
+    if(isReverse){
+      els.playerTitle.textContent = "❓ Чей вопрос смешнее?";
+      // Show the punchline as subtitle with emphasis
+      els.playerSubtitle.innerHTML = '<span style="opacity:0.65;font-size:0.85em">Ответ:</span> <strong>' + escapeHtml(vote.questionText) + '</strong>';
+    } else {
+      els.playerTitle.textContent = "Кто смешнее?";
+      els.playerSubtitle.textContent = vote.questionText;
+    }
     els.playerCtaRow.innerHTML = "";
     if(!vote.canVote){
       els.playerVoteList.innerHTML = '<div class="player-message player-wait">' +
@@ -1448,8 +1484,8 @@
     var leftChosen = vote.chosenClientId === vote.leftClientId || state.lastChosenVote === vote.leftClientId;
     var rightChosen = vote.chosenClientId === vote.rightClientId || state.lastChosenVote === vote.rightClientId;
     els.playerVoteList.innerHTML = "" +
-      voteCardForPlayer(vote, "left", leftAuthor, leftChosen) +
-      voteCardForPlayer(vote, "right", rightAuthor, rightChosen);
+      voteCardForPlayer(vote, "left", leftAuthor, leftChosen, isReverse) +
+      voteCardForPlayer(vote, "right", rightAuthor, rightChosen, isReverse);
     Array.prototype.forEach.call(els.playerVoteList.querySelectorAll("[data-target]"), function(btn){
       btn.addEventListener("click", function(){
         submitVote(btn.getAttribute("data-target"));
@@ -1457,12 +1493,13 @@
     });
   }
 
-  function voteCardForPlayer(vote, side, author, chosen){
+  function voteCardForPlayer(vote, side, author, chosen, isReverse){
     var text = side === "left" ? vote.leftText : vote.rightText;
     var missing = side === "left" ? vote.leftMissing : vote.rightMissing;
     var target = side === "left" ? vote.leftClientId : vote.rightClientId;
+    var label = isReverse ? "Голос за этот вопрос" : "Голос за этого";
     return '<button class="vote-card" type="button" data-target="' + target + '"' + (chosen ? ' data-chosen="true"' : "") + (missing ? " disabled" : "") + '>' +
-      '<strong>' + (missing ? "Не ответил" : "Голос за этого") + '</strong>' +
+      '<strong>' + (missing ? "Не ответил" : label) + '</strong>' +
       '<p>' + (missing ? "(НЕТ ОТВЕТА)" : escapeHtml(text)) + '</p>' +
     '</button>';
   }

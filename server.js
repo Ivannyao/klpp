@@ -64,6 +64,71 @@ const KLPP_STARTER_QUESTIONS = [
   "Что мог бы написать кофе на чашке, если бы умел отвечать."
 ];
 
+// Pool of ready-made punchlines for reverse_round modifier.
+// Players see the answer and have to write a funny question for it.
+const KLPP_REVERSE_ANSWERS = [
+  "Потому что он был на диете.",
+  "Три зубочистки и надежда.",
+  "Оно само началось в 3 часа ночи.",
+  "Дедушка сказал, что так надо.",
+  "Это был кот.",
+  "Просто добавь воды.",
+  "Именно поэтому я и ушёл из цирка.",
+  "Никто не виноват — просто пятница.",
+  "Я просто хотел тост.",
+  "Официально это называется 'инновация'.",
+  "Это была не моя корова.",
+  "Восемь лет психологии не подготовили меня к этому.",
+  "Он плакал, но продолжал.",
+  "Технически это не запрещено.",
+  "Оказалось, это была не дверь.",
+  "Я думал, так у всех.",
+  "Это была последняя банка сгущёнки.",
+  "Справка от врача прилагается.",
+  "Так всегда заканчиваются хорошие истории.",
+  "Потому что гравитация — это условность.",
+  "Сосед тоже так думал.",
+  "И тут выяснилось, что кнопка лифта не работает.",
+  "Главное — уверенность в голосе.",
+  "Ещё три минуты — и был бы рекорд.",
+  "Это была чужая собака.",
+  "Таможня не одобрила.",
+  "Позвоните маме — она знает.",
+  "В инструкции этого не было.",
+  "Я больше так не буду.",
+  "Наука пока не объяснила."
+];
+
+// Grammar hint categories for blind_round: maps question text to a short prompt.
+const KLPP_BLIND_HINTS = [
+  "КТО? 🙋",
+  "МЕСТО 📍",
+  "ДЕЙСТВИЕ 🏃",
+  "ПРИЧИНА 🤔",
+  "НАЗВАНИЕ 🏷️",
+  "ФРАЗА 💬",
+  "ПРЕДМЕТ 📦",
+  "СОБЫТИЕ ⚡"
+];
+
+function klppBlindHintForQuestion(questionText){
+  // Deterministic hint from question text hash
+  let hash = 0;
+  for(let i = 0; i < questionText.length; i++) hash = (hash * 31 + questionText.charCodeAt(i)) >>> 0;
+  return KLPP_BLIND_HINTS[hash % KLPP_BLIND_HINTS.length];
+}
+
+function takeKlppReverseAnswers(room, count){
+  const pool = KLPP_REVERSE_ANSWERS.slice();
+  const used = room.reverseAnswerHistory || [];
+  const unused = pool.filter(function(a){ return used.indexOf(a) === -1; });
+  let source = unused.length >= count ? unused : unused.concat(pool.filter(function(a){ return unused.indexOf(a) === -1; }));
+  const picked = shuffleKlpp(source).slice(0, count);
+  if(!room.reverseAnswerHistory) room.reverseAnswerHistory = [];
+  picked.forEach(function(a){ if(room.reverseAnswerHistory.indexOf(a) === -1) room.reverseAnswerHistory.push(a); });
+  return picked;
+}
+
 const KLPP_DEFAULT_SETTINGS = Object.freeze({
   answerSeconds: 75,
   voteSeconds: 40,
@@ -283,8 +348,8 @@ const KLPP_MODIFIERS = {
       }
     }
   },
-  reverse_round: {id:"reverse_round", name:"Раунд наоборот", icon:"❓", description:"Игроки придумывают вопрос под готовый ответ", minPlayers:2, notImplemented:true},
-  blind_round: {id:"blind_round", name:"Слепой раунд", icon:"🙈", description:"Виден только формат ответа", minPlayers:2, notImplemented:true},
+  reverse_round: {id:"reverse_round", name:"Раунд наоборот", icon:"❓", description:"Видишь только ответ — придумай к нему вопрос!", minPlayers:2},
+  blind_round: {id:"blind_round", name:"Слепой раунд", icon:"🙈", description:"Виден только тип ответа, но не сам вопрос", minPlayers:2},
   drunk_mode: {id:"drunk_mode", name:"Пьяный режим", icon:"🍺", description:"Интерфейс начинает шататься и плыть", minPlayers:2},
   leader_abilities: {id:"leader_abilities", name:"Способности лидера", icon:"👑", description:"Лидер получает способности после раунда", minPlayers:3, notImplemented:true}
 };
@@ -488,19 +553,32 @@ function setupKlppRound(room){
   }
   const nextRoundNumber = room.roundIndex + 1;
   const pairs = generateKlppPairs(room);
-  const questions = takeKlppRoundQuestions(room, pairs.length);
+  const modifiers = klppAssignModifiersToRound(room);
+  const isReverse = modifiers.indexOf("reverse_round") !== -1;
+  const isBlind = modifiers.indexOf("blind_round") !== -1;
+
+  // Pick prompts: reverse_round uses punchlines, classic uses questions
+  let prompts;
+  if(isReverse){
+    prompts = takeKlppReverseAnswers(room, pairs.length);
+  } else {
+    prompts = takeKlppRoundQuestions(room, pairs.length);
+  }
+
   const assignmentsByPlayer = {};
   listKlppPlayers(room).forEach(function(player){
     assignmentsByPlayer[player.clientId] = [];
   });
   const roundPairs = pairs.map(function(pair, index){
-    const questionText = questions[index] || KLPP_STARTER_QUESTIONS[index % KLPP_STARTER_QUESTIONS.length];
+    const promptText = prompts[index] || (isReverse ? KLPP_REVERSE_ANSWERS[index % KLPP_REVERSE_ANSWERS.length] : KLPP_STARTER_QUESTIONS[index % KLPP_STARTER_QUESTIONS.length]);
+    const hintText = (!isReverse && isBlind) ? klppBlindHintForQuestion(promptText) : null;
     const pairId = "r" + nextRoundNumber + "-p" + (index + 1);
     const a = pair.players[0];
     const b = pair.players[1];
-    assignmentsByPlayer[a].push({pairId: pairId, questionText: questionText, opponentClientId: b, answerText: "", submittedAt: 0, status: "pending"});
-    assignmentsByPlayer[b].push({pairId: pairId, questionText: questionText, opponentClientId: a, answerText: "", submittedAt: 0, status: "pending"});
-    return {pairId: pairId, questionText: questionText, players: [a, b], baseKey: pair.baseKey};
+    const baseAssignment = {pairId: pairId, questionText: promptText, hintText: hintText, opponentClientId: null, answerText: "", submittedAt: 0, status: "pending"};
+    assignmentsByPlayer[a].push(Object.assign({}, baseAssignment, {opponentClientId: b}));
+    assignmentsByPlayer[b].push(Object.assign({}, baseAssignment, {opponentClientId: a}));
+    return {pairId: pairId, questionText: promptText, hintText: hintText, players: [a, b], baseKey: pair.baseKey};
   });
   Object.keys(assignmentsByPlayer).forEach(function(clientId){
     assignmentsByPlayer[clientId] = shuffleKlpp(assignmentsByPlayer[clientId]).map(function(item, index){
@@ -508,15 +586,19 @@ function setupKlppRound(room){
       return item;
     });
   });
-  const modifiers = klppAssignModifiersToRound(room);
+
+  let introText = "Обычный раунд";
+  if(isReverse) introText = "Раунд наоборот: придумай вопрос к ответу!";
+  else if(isBlind) introText = "Слепой раунд: только подсказка — без вопроса!";
+
   room.currentRound = {
-    type: "classic",
+    type: isReverse ? "reverse" : "classic",
     roundNumber: nextRoundNumber,
     pairs: roundPairs,
     assignmentsByPlayer: assignmentsByPlayer,
     voteQueue: [],
     currentVoteIndex: 0,
-    introText: "Обычный раунд",
+    introText: introText,
     modifiers: modifiers
   };
   room.roundIndex = nextRoundNumber;
@@ -866,11 +948,18 @@ function klppCountTotalAssignments(room){
 
 function klppViewerAssignments(room, clientId){
   if(!room.currentRound || !clientId) return [];
+  const isBlind = Array.isArray(room.currentRound.modifiers) && room.currentRound.modifiers.indexOf("blind_round") !== -1;
+  const isReverse = room.currentRound.type === "reverse";
   const list = room.currentRound.assignmentsByPlayer[clientId] || [];
   return list.map(function(item){
     return {
       pairId: item.pairId,
       questionText: item.questionText,
+      // In answer phase: blind_round hides question, reverse_round shows punchline (questionText already is the punchline)
+      displayText: (isBlind && item.hintText) ? item.hintText : item.questionText,
+      hintText: item.hintText || null,
+      isBlind: Boolean(isBlind && item.hintText),
+      isReverse: isReverse,
       opponentClientId: item.opponentClientId,
       status: item.status,
       answerText: item.status === "answered" ? item.answerText : "",
@@ -882,12 +971,18 @@ function klppViewerAssignments(room, clientId){
 
 function klppViewerCurrentAssignment(room, clientId){
   if(room.state !== "answer" || !clientId) return null;
+  const isBlind = Array.isArray(room.currentRound && room.currentRound.modifiers) && room.currentRound.modifiers.indexOf("blind_round") !== -1;
+  const isReverse = room.currentRound && room.currentRound.type === "reverse";
   const list = room.currentRound ? (room.currentRound.assignmentsByPlayer[clientId] || []) : [];
   const pending = list.find(function(item){ return item.status === "pending"; });
   if(!pending) return null;
   return {
     pairId: pending.pairId,
     questionText: pending.questionText,
+    displayText: (isBlind && pending.hintText) ? pending.hintText : pending.questionText,
+    hintText: pending.hintText || null,
+    isBlind: Boolean(isBlind && pending.hintText),
+    isReverse: isReverse,
     opponentClientId: pending.opponentClientId,
     order: pending.order || 0
   };
@@ -944,9 +1039,15 @@ function klppSerializeCurrentVote(room, nameMap){
   const eligible = listKlppEligibleVoters(room, vote);
   const votesGiven = Object.keys(vote.votes || {}).filter(function(voter){ return eligible.indexOf(voter) !== -1; }).length;
   const hideAuthors = klppHideAuthorsNow(room, vote);
+  const isReverse = room.currentRound && room.currentRound.type === "reverse";
+  // In vote phase, always show full question. For reverse_round: questionText = punchline, leftText/rightText = player-written questions.
+  // Labels flip accordingly.
   return {
     pairId: vote.pairId,
     questionText: vote.questionText,
+    isReverse: Boolean(isReverse),
+    // For reverse_round, during voting we show the punchline prominently and vote on the written questions
+    reverseLabel: isReverse ? "🎯 Готовый ответ" : null,
     leftClientId: vote.leftClientId,
     rightClientId: vote.rightClientId,
     leftNickname: hideAuthors ? "Игрок А" : (nameMap.get(vote.leftClientId) || "Игрок"),
