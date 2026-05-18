@@ -1471,7 +1471,23 @@
         els.playerSubtitle.textContent = (done + 1) + " из " + total;
         els.playerAnswerQuestion.textContent = assignment.questionText;
       }
-      els.playerAnswerMeta.textContent = "";
+      
+      if (assignment.spyOpponentAnswer) {
+        els.playerAnswerMeta.innerHTML = 
+          '<div class="klpp-spy-reveal-box">' +
+            '<span class="spy-eye">👁️</span> ' +
+            '<strong>ШПИОНАЖ:</strong> Твой оппонент ответил:<br>' +
+            '<span class="spy-answer-text">«' + escapeHtml(assignment.spyOpponentAnswer) + '»</span>' +
+          '</div>';
+      } else if (viewer && viewer.activeAbility === "spy") {
+        els.playerAnswerMeta.innerHTML = 
+          '<div class="klpp-spy-reveal-box pending">' +
+            '<span class="spy-eye">👁️</span> ' +
+            '<strong>ШПИОНАЖ:</strong> Оппонент ещё придумывает ответ... (как только ответит — он появится здесь)' +
+          '</div>';
+      } else {
+        els.playerAnswerMeta.textContent = "";
+      }
       els.playerMessage.hidden = true;
     } else {
       els.playerTitle.textContent = "Готово";
@@ -1524,6 +1540,9 @@
     var missing = side === "left" ? vote.leftMissing : vote.rightMissing;
     var target = side === "left" ? vote.leftClientId : vote.rightClientId;
     var label = isReverse ? "Голос за этот вопрос" : "Голос за этого";
+    if(!vote.anonymous && author){
+      label += " (" + escapeHtml(author.nickname) + ")";
+    }
     return '<button class="vote-card" type="button" data-target="' + target + '"' + (chosen ? ' data-chosen="true"' : "") + (missing ? " disabled" : "") + '>' +
       '<strong>' + (missing ? "Не ответил" : label) + '</strong>' +
       '<p>' + (missing ? "(НЕТ ОТВЕТА)" : escapeHtml(text)) + '</p>' +
@@ -1642,11 +1661,12 @@
   function renderPlayerAbilitySelect(snap){
     var viewer = snap.viewer || {};
     var isLeader = Boolean(viewer.isGameLeader);
-    
+    var activeIds = (snap.activeModifiers || []).map(function(m){ return m && m.id; });
+    var hasParty = activeIds.indexOf("ability_party") !== -1;
     els.playerTitle.textContent = "Выбор способности";
-    els.playerSubtitle.textContent = isLeader 
-      ? "Выберите суперспособность на следующий раунд!"
-      : "Лидер выбирает суперспособность на следующий раунд...";
+    els.playerSubtitle.textContent = (isLeader || hasParty)
+      ? "Выберите суперспособность на этот раунд!"
+      : "Лидер выбирает суперспособность на этот раунд...";
 
     if(!snap.abilitySelect){
       els.playerAbilitySelect.hidden = true;
@@ -1656,7 +1676,7 @@
       return;
     }
 
-    if(isLeader){
+    if(isLeader || hasParty){
       els.playerAbilitySelect.hidden = false;
       els.playerMessage.hidden = true;
       
