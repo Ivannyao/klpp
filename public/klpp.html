@@ -68,9 +68,21 @@ img{display:block;max-width:100%}
 }
 
 /* Play button: hover still swaps fire ↔ water (unchanged).
-   Fire is now a live SVG bonfire (turbulence-displaced gradient flame),
-   no CSS animation needed on the .normal. Water keeps its sway. */
+   Fire is the original PNG with a hand-keyframed breathing motion
+   so it reads as a living flame without altering the artwork or
+   adding glow/shadow effects. */
+.btn-play .normal{animation:fire-breathe 1.8s ease-in-out infinite;transform-origin:50% 60%}
 .btn-play .alt{animation:water-waves 3.2s ease-in-out infinite}
+
+@keyframes fire-breathe{
+  0%   {transform:translateY(0)    scale(1, 1)       rotate(0deg)}
+  15%  {transform:translateY(-1px) scale(1.03, 1.06) rotate(-1deg)}
+  30%  {transform:translateY(0)    scale(.98, .95)   rotate(.5deg)}
+  45%  {transform:translateY(-2px) scale(1.05, 1.08) rotate(-1.5deg)}
+  60%  {transform:translateY(0)    scale(1.01, .97)  rotate(1deg)}
+  75%  {transform:translateY(-1px) scale(1.04, 1.07) rotate(-.5deg)}
+  100% {transform:translateY(0)    scale(1, 1)       rotate(0deg)}
+}
 
 @keyframes water-waves{
   0%,100%{transform:translateY(0)    rotate(0deg)   skewX(0deg)}
@@ -522,81 +534,7 @@ img{display:block;max-width:100%}
 
         <button class="desktop-button btn-play" id="desktopPlayButton" type="button">
           <span class="sr">Играть</span>
-          <!-- Live fire play icon, hand-built:
-               * play triangle filled with vertical fire gradient (red→white)
-               * soft ember glow pulsing under the button
-               * six discrete teardrop tongues rising + fading on stagger,
-                 so something is always lifting off and the loop never
-                 looks identical. No turbulence/displacement (those make
-                 the icon look like jelly), just transform + opacity. -->
-          <svg class="normal play-fire-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-            <defs>
-              <linearGradient id="pf-body" x1="50%" y1="100%" x2="50%" y2="0%">
-                <stop offset="0%"   stop-color="#7a1100"/>
-                <stop offset="15%"  stop-color="#d72500"/>
-                <stop offset="40%"  stop-color="#ff6a00"/>
-                <stop offset="65%"  stop-color="#ffae00"/>
-                <stop offset="85%"  stop-color="#ffe97f"/>
-                <stop offset="100%" stop-color="#fff8d4"/>
-              </linearGradient>
-              <radialGradient id="pf-tongue" cx="50%" cy="85%" r="55%">
-                <stop offset="0%"   stop-color="#fff6c8"/>
-                <stop offset="35%"  stop-color="#ffd34d"/>
-                <stop offset="70%"  stop-color="#ff6a00"/>
-                <stop offset="100%" stop-color="#ff3000" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="pf-ember" cx="50%" cy="50%" r="55%">
-                <stop offset="0%"   stop-color="#ff8c20" stop-opacity=".75"/>
-                <stop offset="100%" stop-color="#ff3000" stop-opacity="0"/>
-              </radialGradient>
-              <radialGradient id="pf-core" cx="45%" cy="55%" r="42%">
-                <stop offset="0%"   stop-color="#fff8c0" stop-opacity=".9"/>
-                <stop offset="55%"  stop-color="#ffc94d" stop-opacity=".35"/>
-                <stop offset="100%" stop-color="#ff7a00" stop-opacity="0"/>
-              </radialGradient>
-            </defs>
-
-            <!-- Ember bed: soft warm glow under the button -->
-            <ellipse cx="50" cy="92" rx="40" ry="8" fill="url(#pf-ember)">
-              <animate attributeName="rx" values="40;44;38;42;40" dur="1.6s" repeatCount="indefinite"/>
-              <animate attributeName="opacity" values=".75;.95;.6;.85;.75" dur="1.6s" repeatCount="indefinite"/>
-            </ellipse>
-
-            <!-- The play triangle itself, painted in fire -->
-            <path d="M30,16 L86,50 L30,84 Z" fill="url(#pf-body)"/>
-            <!-- Bright core highlight -->
-            <path d="M30,16 L86,50 L30,84 Z" fill="url(#pf-core)"/>
-
-            <!-- Six rising flame tongues, anchored along the triangle edge.
-                 Each is a smooth teardrop that drifts up, scales down and fades,
-                 then loops. Different begin/dur values keep them desynced. -->
-            <g fill="url(#pf-tongue)">
-              <path d="M50,20 C44,10 44,2 50,-4 C56,2 56,10 50,20 Z" opacity="0">
-                <animate attributeName="opacity" values="0;1;.85;.3;0" keyTimes="0;.25;.55;.85;1" dur="1.4s" repeatCount="indefinite"/>
-                <animateTransform attributeName="transform" type="translate" values="0 0;0 -8;0 -18" keyTimes="0;.5;1" dur="1.4s" repeatCount="indefinite"/>
-              </path>
-              <path d="M40,28 C35,20 35,12 40,6 C45,12 45,20 40,28 Z" opacity="0">
-                <animate attributeName="opacity" values="0;.85;.7;.2;0" keyTimes="0;.25;.55;.85;1" dur="1.7s" begin="0.3s" repeatCount="indefinite"/>
-                <animateTransform attributeName="transform" type="translate" values="0 0;0 -7;0 -16" keyTimes="0;.5;1" dur="1.7s" begin="0.3s" repeatCount="indefinite"/>
-              </path>
-              <path d="M60,26 C55,18 55,10 60,4 C65,10 65,18 60,26 Z" opacity="0">
-                <animate attributeName="opacity" values="0;.9;.7;.25;0" keyTimes="0;.25;.55;.85;1" dur="1.3s" begin="0.6s" repeatCount="indefinite"/>
-                <animateTransform attributeName="transform" type="translate" values="0 0;0 -9;0 -19" keyTimes="0;.5;1" dur="1.3s" begin="0.6s" repeatCount="indefinite"/>
-              </path>
-              <path d="M32,32 C28,26 28,18 32,12 C36,18 36,26 32,32 Z" opacity="0">
-                <animate attributeName="opacity" values="0;.7;.55;.15;0" keyTimes="0;.25;.55;.85;1" dur="2s" begin="0.9s" repeatCount="indefinite"/>
-                <animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 -12" keyTimes="0;.5;1" dur="2s" begin="0.9s" repeatCount="indefinite"/>
-              </path>
-              <path d="M70,40 C66,34 66,26 70,20 C74,26 74,34 70,40 Z" opacity="0">
-                <animate attributeName="opacity" values="0;.65;.5;.1;0" keyTimes="0;.25;.55;.85;1" dur="1.5s" begin="0.4s" repeatCount="indefinite"/>
-                <animateTransform attributeName="transform" type="translate" values="0 0;0 -6;0 -13" keyTimes="0;.5;1" dur="1.5s" begin="0.4s" repeatCount="indefinite"/>
-              </path>
-              <path d="M48,40 C44,32 44,24 48,18 C52,24 52,32 48,40 Z" opacity="0">
-                <animate attributeName="opacity" values="0;.95;.8;.3;0" keyTimes="0;.25;.55;.85;1" dur="1.1s" begin="1.2s" repeatCount="indefinite"/>
-                <animateTransform attributeName="transform" type="translate" values="0 0;0 -10;0 -22" keyTimes="0;.5;1" dur="1.1s" begin="1.2s" repeatCount="indefinite"/>
-              </path>
-            </g>
-          </svg>
+          <img class="normal" src="/klpp-assets/icon-play-fire.png" alt="">
           <img class="alt" src="/klpp-assets/icon-play-water.png" alt="">
         </button>
         <div class="desktop-role-split" id="desktopRoleSplit" hidden>
