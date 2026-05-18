@@ -265,6 +265,8 @@ function ensureKlppRoom(room){
   if(!room.pauseMeta) room.pauseMeta = null;
   if(typeof room.endedWithoutScore !== "boolean") room.endedWithoutScore = false;
   if(!room.combo) room.combo = {};
+  if(!room.playerHeldAbilities) room.playerHeldAbilities = {};
+  if(!room.playerActiveAbilities) room.playerActiveAbilities = {};
   return room;
 }
 
@@ -650,7 +652,7 @@ function setKlppState(room, nextState){
   if(nextState === "answer"){
     room.playerActiveAbilities = {};
     room.playerAbilitiesSelect = {};
-    room.usedAbilitiesByPlayer = room.usedAbilitiesByPlayer || {};
+    room.playerHeldAbilities = room.playerHeldAbilities || {};
 
     const activeMods = room.currentRound ? (room.currentRound.modifiers || []) : [];
     const hasParty = activeMods.indexOf("ability_party") !== -1;
@@ -671,11 +673,23 @@ function setKlppState(room, nextState){
         const isLeader = clientId === klppGetLeaderClientId(room);
         const shouldGetSelect = hasParty || (hasLeader && isLeader);
         
-        if (shouldGetSelect && !room.usedAbilitiesByPlayer[clientId]){
-          room.playerAbilitiesSelect[clientId] = {
-            options: shuffleKlpp(ALL_ABILITIES).slice(0, 3),
-            chosen: null
-          };
+        if (shouldGetSelect){
+          const held = room.playerHeldAbilities[clientId];
+          if (held) {
+            const heldDef = ALL_ABILITIES.find(function(a){ return a.id === held; });
+            const others = ALL_ABILITIES.filter(function(a){ return a.id !== held; });
+            room.playerAbilitiesSelect[clientId] = {
+              options: shuffleKlpp(others).slice(0, 2),
+              held: heldDef || null,
+              chosen: null
+            };
+          } else {
+            room.playerAbilitiesSelect[clientId] = {
+              options: shuffleKlpp(ALL_ABILITIES).slice(0, 3),
+              held: null,
+              chosen: null
+            };
+          }
         }
       });
     }
@@ -1251,6 +1265,7 @@ function serializeKlppRoom(room, req){
       isLeader: Boolean(viewerPlayer && viewerPlayer.clientId === leaderClientId),
       isGameLeader: Boolean(viewerPlayer && viewerPlayer.clientId === klppGetLeaderClientId(room)),
       activeAbility: (room.playerActiveAbilities && room.playerActiveAbilities[viewerClientId]) || null,
+      heldAbility: (room.playerHeldAbilities && room.playerHeldAbilities[viewerClientId]) || null,
       canStart: canStart,
       answeredCount: answeredCount,
       totalAssignments: viewerAssignments.length,
@@ -1925,8 +1940,6 @@ const server = http.createServer(async function(req, res){
 
 function klppCanPlayerSelectAbility(room, clientId) {
   if (room.state !== "answer") return false;
-  if (room.playerActiveAbilities && room.playerActiveAbilities[clientId]) return false;
-  if (room.usedAbilitiesByPlayer && room.usedAbilitiesByPlayer[clientId]) return false;
   
   const activeMods = room.currentRound ? (room.currentRound.modifiers || []) : [];
   const hasParty = activeMods.indexOf("ability_party") !== -1;
@@ -1966,26 +1979,67 @@ function klppCanPlayerSelectAbility(room, clientId) {
       
       const abilityId = String(body.abilityId || "").trim();
       const selectObj = room.playerAbilitiesSelect[reqClientId];
-      if(!selectObj || !selectObj.options.some(function(o){ return o.id === abilityId; })){
+      if(!selectObj){
+        sendJson(res, 400, {ok: false, error: "Нет доступных опций"});
+        return;
+      }
+      const isOption = selectObj.options.some(function(o){ return o.id === abilityId; });
+      const isHeld = selectObj.held && selectObj.held.id === abilityId;
+      if(!isOption && !isHeld){
         sendJson(res, 400, {ok: false, error: "Недопустимый выбор"});
         return;
       }
       
       selectObj.chosen = abilityId;
-      room.playerActiveAbilities[reqClientId] = abilityId;
-      room.usedAbilitiesByPlayer[reqClientId] = true;
+      room.playerHeldAbilities = room.playerHeldAbilities || {};
+      room.playerHeldAbilities[reqClientId] = abilityId;
+      
+      broadcastKlppRoom(room);
+      sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
+  const klppUseAbilityMatch = pathname.match(/^\/api\/klpp\/room\/([^/]+)\/use-ability$/);
+  if(req.method === "POST" && klppUseAbilityMatch){
+    try{
+      const room = getKlppRoom(klppUseAbilityMatch[1]);
+      if(!room){
+        sendJson(res, 404, {ok: false, error: "Room not found"});
+        return;
+      }
+      if(room.state !== "answer"){
+        sendJson(res, 409, {ok: false, error: "Не та фаза"});
+        return;
+      }
+      const body = await parseBody(req);
+      const reqClientId = String(body.clientId || "").trim();
+      
+      room.playerHeldAbilities = room.playerHeldAbilities || {};
+      const heldAbility = room.playerHeldAbilities[reqClientId];
+      if(!heldAbility){
+        sendJson(res, 400, {ok: false, error: "У вас нет удерживаемой способности"});
+        return;
+      }
+      
+      // Move from held to active (spent)
+      room.playerActiveAbilities = room.playerActiveAbilities || {};
+      room.playerActiveAbilities[reqClientId] = heldAbility;
+      delete room.playerHeldAbilities[reqClientId];
       
       // Apply instant effects
-      if(abilityId === "freeze_timer"){
+      if(heldAbility === "freeze_timer"){
         room.phaseDurationMs += 25000;
         if(room.phaseEndsAt) room.phaseEndsAt += 25000;
-      } else if(abilityId === "reduce_timer"){
+      } else if(heldAbility === "reduce_timer"){
         const elapsedSec = (Date.now() - room.phaseStartedAt) / 1000;
         if(elapsedSec < 20){
           room.phaseDurationMs = 20000;
           room.phaseEndsAt = room.phaseStartedAt + 20000;
         }
-      } else if(abilityId === "swap_questions"){
+      } else if(heldAbility === "swap_questions"){
         klppSwapQuestions(room, reqClientId);
       }
       

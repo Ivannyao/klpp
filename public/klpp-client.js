@@ -1450,6 +1450,44 @@
     var total = viewer.totalAssignments || 0;
     var done = Math.min(viewer.answeredCount || 0, total);
     els.playerCtaRow.innerHTML = "";
+    
+    // Ability Activation Widget (Option V)
+    var abilityDefs = {
+      freeze_timer: { name: "Заморозка времени", icon: "❄️", desc: "Добавить +25 секунд к таймеру ответов раунда" },
+      reduce_timer: { name: "Сокращение времени", icon: "⚡", desc: "Сократить таймер раунда на 25 секунд" },
+      swap_questions: { name: "Обмен вопросами", icon: "🔄", desc: "Обменять текущий вопрос на случайный" },
+      join_the_battle: { name: "Вступить в бой", icon: "⚔️", desc: "Получить +50% очков в этом раунде" },
+      spy: { name: "Шпионаж", icon: "👁️", desc: "Видеть ответ соперника в реальном времени" }
+    };
+    var held = viewer.heldAbility;
+    var def = abilityDefs[held];
+    if (assignment && def) {
+      var existing = document.getElementById("playerHeldAbilityWidget");
+      if (!existing) {
+        existing = document.createElement("div");
+        existing.id = "playerHeldAbilityWidget";
+        existing.style.cssText = "background:#fffdf5; border:4px solid #ffd447; border-radius:16px; padding:16px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; gap:12px; box-shadow:0 6px 12px rgba(0,0,0,0.08);";
+        els.playerAnswerForm.insertBefore(existing, els.playerAnswerForm.firstChild);
+      }
+      existing.innerHTML = 
+        '<div style="display:flex; align-items:center; gap:12px;">' +
+          '<span style="font-size:32px;">' + escapeHtml(def.icon) + '</span>' +
+          '<div>' +
+            '<strong style="font-size:16px; display:block; color:#856404; margin-bottom:2px;">' + escapeHtml(def.name) + '</strong>' +
+            '<span style="font-size:12px; color:#666;">' + escapeHtml(def.desc) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<button class="cta small-pill" type="button" id="useAbilityBtn" style="padding:10px 16px; font-size:14px; background:#ffc107; border:3px solid #856404; color:#212529;">ИСПОЛЬЗОВАТЬ</button>';
+      
+      var useBtn = document.getElementById("useAbilityBtn");
+      if (useBtn) {
+        useBtn.addEventListener("click", useAbility);
+      }
+    } else {
+      var existing = document.getElementById("playerHeldAbilityWidget");
+      if (existing) existing.parentNode.removeChild(existing);
+    }
+
     if(assignment){
       var isReverse = Boolean(assignment.isReverse);
       var isBlind = Boolean(assignment.isBlind);
@@ -1484,7 +1522,7 @@
           '<div class="klpp-spy-reveal-box pending">' +
             '<span class="spy-eye">👁️</span> ' +
             '<strong>ШПИОНАЖ:</strong> Оппонент ещё придумывает ответ... (как только ответит — он появится здесь)' +
-          '</div>';
+            '</div>';
       } else {
         els.playerAnswerMeta.textContent = "";
       }
@@ -1658,6 +1696,21 @@
     }
   }
 
+  async function useAbility(){
+    try {
+      await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/use-ability", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          clientId: state.clientId
+        })
+      });
+      klppAudio.click();
+    } catch(error) {
+      alert("Ошибка при активации способности: " + (error.message || error));
+    }
+  }
+
   function renderPlayerAbilitySelect(snap){
     var viewer = snap.viewer || {};
     var isLeader = Boolean(viewer.isGameLeader);
@@ -1682,6 +1735,23 @@
       
       var options = snap.abilitySelect.options || [];
       var html = "";
+      
+      if (snap.abilitySelect.held) {
+        var opt = snap.abilitySelect.held;
+        var isChosen = snap.abilitySelect.chosen === opt.id;
+        html += '<div style="margin-bottom:12px; font-weight:800; font-size:14px; color:#856404; text-transform:uppercase; letter-spacing:1.5px;">Оставить удерживаемую:</div>';
+        html += '<button class="vote-card" type="button" style="text-align:left; width:100%; margin-bottom:20px; border-color:#856404; background:#fffdf5;" data-ability-id="' + opt.id + '"' + (isChosen ? ' data-chosen="true"' : '') + '>' +
+          '<div style="display:flex; align-items:center; gap:12px;">' +
+            '<div style="font-size:32px;">' + escapeHtml(opt.icon) + '</div>' +
+            '<div>' +
+              '<strong style="font-size:16px; display:block; margin-bottom:4px; color:#856404;">' + escapeHtml(opt.name) + ' (Уже у вас)</strong>' +
+              '<span style="font-family:Inter,sans-serif; font-size:13px; color:#666;">' + escapeHtml(opt.description) + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</button>';
+        html += '<div style="margin-bottom:12px; font-weight:800; font-size:14px; color:#555; text-transform:uppercase; letter-spacing:1.5px;">Или заменить на новую:</div>';
+      }
+
       options.forEach(function(opt){
         var isChosen = snap.abilitySelect.chosen === opt.id;
         html += '<button class="vote-card" type="button" style="text-align:left; width:100%; margin-bottom:10px;" data-ability-id="' + opt.id + '"' + (isChosen ? ' data-chosen="true"' : '') + '>' +
@@ -1697,7 +1767,7 @@
       els.playerAbilityOptions.innerHTML = html;
 
       // Add click handlers
-      Array.prototype.forEach.call(els.playerAbilityOptions.children, function(btn){
+      Array.prototype.forEach.call(els.playerAbilityOptions.querySelectorAll("[data-ability-id]"), function(btn){
         btn.addEventListener("click", function(){
           var abilityId = btn.getAttribute("data-ability-id");
           selectAbility(abilityId);
