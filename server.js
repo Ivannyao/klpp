@@ -661,9 +661,11 @@ function setKlppState(room, nextState){
         chosen: null
       };
       room.roundActiveAbility = null;
+      room.roundActiveAbilityUser = null;
     } else {
       room.abilitySelect = null;
       room.roundActiveAbility = null;
+      room.roundActiveAbilityUser = null;
     }
   }
 }
@@ -807,9 +809,8 @@ function finalizeKlppVote(room){
     leftScoreDelta *= 2;
     rightScoreDelta *= 2;
   }
-  if(room.roundActiveAbility === "join_the_battle"){
-    const leader = listKlppPlayers(room)[0];
-    const leaderId = leader ? leader.clientId : "";
+  if(room.roundActiveAbility === "join_the_battle" && room.roundActiveAbilityUser){
+    const leaderId = room.roundActiveAbilityUser;
     if(vote.leftClientId === leaderId) leftScoreDelta = Math.round(leftScoreDelta * 1.5);
     if(vote.rightClientId === leaderId) rightScoreDelta = Math.round(rightScoreDelta * 1.5);
   }
@@ -1194,7 +1195,7 @@ function serializeKlppRoom(room, req){
     activeModifiers: klppActiveModifiersForRound(room),
     activeAbility: room.activeAbility || null,
     roundActiveAbility: room.roundActiveAbility || null,
-    abilitySelect: (room.state === "answer" && viewerClientId === leaderClientId && room.abilitySelect && !room.abilitySelect.chosen && (Date.now() - room.phaseStartedAt < 10000)) ? clone(room.abilitySelect) : null,
+    abilitySelect: (room.state === "answer" && viewerClientId === klppGetLeaderClientId(room) && room.abilitySelect && !room.abilitySelect.chosen && (Date.now() - room.phaseStartedAt < 10000)) ? clone(room.abilitySelect) : null,
     players: players.map(function(player, index){
       const playerAssignments = klppViewerAssignments(room, player.clientId);
       const playerAnsweredCount = playerAssignments.filter(function(item){ return item.status !== "pending"; }).length;
@@ -1220,6 +1221,7 @@ function serializeKlppRoom(room, req){
       nickname: viewerPlayer ? viewerPlayer.nickname : "",
       avatar: viewerPlayer ? clone(viewerPlayer.avatar || null) : null,
       isLeader: Boolean(viewerPlayer && viewerPlayer.clientId === leaderClientId),
+      isGameLeader: Boolean(viewerPlayer && viewerPlayer.clientId === klppGetLeaderClientId(room)),
       canStart: canStart,
       answeredCount: answeredCount,
       totalAssignments: viewerAssignments.length,
@@ -1238,6 +1240,18 @@ function hasKlppHostAccess(room, body){
 function hasKlppLeaderAccess(room, body){
   const firstPlayer = listKlppPlayers(room)[0];
   return Boolean(firstPlayer && firstPlayer.clientId === String((body && body.clientId) || "").trim());
+}
+
+function klppGetLeaderClientId(room) {
+  const players = listKlppPlayers(room);
+  if (!players.length) return "";
+  const sorted = players.slice().sort(function(a, b) {
+    const scoreA = room.scoreboard[a.clientId] || 0;
+    const scoreB = room.scoreboard[b.clientId] || 0;
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    return a.joinedAt - b.joinedAt;
+  });
+  return sorted[0] ? sorted[0].clientId : "";
 }
 
 function klppSwapQuestions(room){
@@ -1866,8 +1880,10 @@ const server = http.createServer(async function(req, res){
         return;
       }
       const body = await parseBody(req);
-      if(!hasKlppLeaderAccess(room, body)){
-        sendJson(res, 403, {ok: false, error: "Только owner-игрок может выбирать способность"});
+      const gameLeaderId = klppGetLeaderClientId(room);
+      const reqClientId = String(body.clientId || "").trim();
+      if(!reqClientId || reqClientId !== gameLeaderId){
+        sendJson(res, 403, {ok: false, error: "Только лидирующий по очкам игрок может выбирать способность"});
         return;
       }
       const abilityId = String(body.abilityId || "").trim();
@@ -1878,6 +1894,7 @@ const server = http.createServer(async function(req, res){
       room.abilitySelect.chosen = abilityId;
       room.activeAbility = abilityId;
       room.roundActiveAbility = abilityId;
+      room.roundActiveAbilityUser = reqClientId;
       
       // Apply instant effects
       if(abilityId === "freeze_timer"){

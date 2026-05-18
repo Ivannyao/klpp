@@ -1641,7 +1641,7 @@
 
   function renderPlayerAbilitySelect(snap){
     var viewer = snap.viewer || {};
-    var isLeader = Boolean(viewer.isLeader);
+    var isLeader = Boolean(viewer.isGameLeader);
     
     els.playerTitle.textContent = "Выбор способности";
     els.playerSubtitle.textContent = isLeader 
