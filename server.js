@@ -351,7 +351,7 @@ const KLPP_MODIFIERS = {
   reverse_round: {id:"reverse_round", name:"Раунд наоборот", icon:"❓", description:"Видишь только ответ — придумай к нему вопрос!", minPlayers:2},
   blind_round: {id:"blind_round", name:"Слепой раунд", icon:"🙈", description:"Виден только тип ответа, но не сам вопрос", minPlayers:2},
   drunk_mode: {id:"drunk_mode", name:"Пьяный режим", icon:"🍺", description:"Интерфейс начинает шататься и плыть", minPlayers:2},
-  leader_abilities: {id:"leader_abilities", name:"Способности лидера", icon:"👑", description:"Лидер получает способности после раунда", minPlayers:3, notImplemented:true}
+  leader_abilities: {id:"leader_abilities", name:"Способности лидера", icon:"👑", description:"Лидер получает способности после раунда", minPlayers:3}
 };
 
 function klppListAvailableModifiers(){
@@ -545,6 +545,11 @@ function generateKlppPairs(room){
 
 function setupKlppRound(room){
   ensureKlppRoom(room);
+  
+  // Consume activeAbility and save it for this round
+  room.roundActiveAbility = room.activeAbility || null;
+  room.activeAbility = null;
+
   if(room.roundIndex >= room.settings.roundCount){
     room.currentRound = null;
     room.state = "finished";
@@ -586,6 +591,37 @@ function setupKlppRound(room){
       return item;
     });
   });
+
+  // Apply swap_questions ability if active
+  if(room.roundActiveAbility === "swap_questions"){
+    const playerIds = Object.keys(assignmentsByPlayer);
+    if(playerIds.length >= 2){
+      const playerA = playerIds[0];
+      const playerB = playerIds[1];
+      const listA = assignmentsByPlayer[playerA] || [];
+      const listB = assignmentsByPlayer[playerB] || [];
+      if(listA.length > 0 && listB.length > 0){
+        // Swap their first assignment's promptText/hintText
+        const tempQ = listA[0].questionText;
+        const tempH = listA[0].hintText;
+        listA[0].questionText = listB[0].questionText;
+        listA[0].hintText = listB[0].hintText;
+        listB[0].questionText = tempQ;
+        listB[0].hintText = tempH;
+        // Also swap the promptText/hintText in roundPairs
+        const pairA = roundPairs.find(function(p){ return p.pairId === listA[0].pairId; });
+        const pairB = roundPairs.find(function(p){ return p.pairId === listB[0].pairId; });
+        if(pairA && pairB){
+          const pTempQ = pairA.questionText;
+          const pTempH = pairA.hintText;
+          pairA.questionText = pairB.questionText;
+          pairA.hintText = pairB.hintText;
+          pairB.questionText = pTempQ;
+          pairB.hintText = pTempH;
+        }
+      }
+    }
+  }
 
   let introText = "Обычный раунд";
   if(isReverse) introText = "Раунд наоборот: придумай вопрос к ответу!";
@@ -750,6 +786,12 @@ function finalizeKlppVote(room){
     leftScoreDelta *= 2;
     rightScoreDelta *= 2;
   }
+  if(room.roundActiveAbility === "join_the_battle"){
+    const leader = listKlppPlayers(room)[0];
+    const leaderId = leader ? leader.clientId : "";
+    if(vote.leftClientId === leaderId) leftScoreDelta = Math.round(leftScoreDelta * 1.5);
+    if(vote.rightClientId === leaderId) rightScoreDelta = Math.round(rightScoreDelta * 1.5);
+  }
   room.scoreboard[vote.leftClientId] = Math.max(0, (room.scoreboard[vote.leftClientId] || 0) + leftScoreDelta);
   room.scoreboard[vote.rightClientId] = Math.max(0, (room.scoreboard[vote.rightClientId] || 0) + rightScoreDelta);
   const nameMap = new Map(listKlppPlayers(room).map(function(player){ return [player.clientId, player.nickname]; }));
@@ -871,10 +913,39 @@ function tickKlppRoom(room){
   }else if(room.state === "vote_result" && elapsed >= KLPP_VOTE_RESULT_MS){
     moveKlppToNextVoteOrScore(room);
   }else if(room.state === "round_score" && elapsed >= KLPP_ROUND_SCORE_MS){
+    const hasAbilities = room.settings.modifierMode !== "off" && room.settings.selectedModifiers.indexOf("leader_abilities") !== -1;
+    if(hasAbilities){
+      setupAbilitySelect(room);
+    } else {
+      setupKlppRound(room);
+      setKlppState(room, "round_intro");
+    }
+  }else if(room.state === "ability_select" && elapsed >= 10000){ // 10s timer
+    if(room.abilitySelect && !room.abilitySelect.chosen){
+      room.abilitySelect.chosen = room.abilitySelect.options[0].id;
+    }
+    room.activeAbility = room.abilitySelect.chosen;
+    room.abilitySelect = null;
     setupKlppRound(room);
     setKlppState(room, "round_intro");
   }
   return room;
+}
+
+function setupAbilitySelect(room){
+  const ALL_ABILITIES = [
+    {id: "freeze_timer", name: "Заморозка времени", icon: "❄️", description: "Добавляет +25 секунд к таймеру ответов следующего раунда"},
+    {id: "reduce_timer", name: "Сокращение времени", icon: "⚡", description: "Сокращает таймер ответов следующего раунда на 25 секунд"},
+    {id: "swap_questions", name: "Обмен вопросами", icon: "🔄", description: "Случайно меняет вопросы местами у двух игроков"},
+    {id: "join_the_battle", name: "Вступить в бой", icon: "⚔️", description: "Лидер получает +50% к очкам за свои ответы в следующем раунде"},
+    {id: "spy", name: "Шпионаж", icon: "👁️", description: "Лидер видит настоящих авторов ответов в анонимном голосовании"}
+  ];
+  const options = shuffleKlpp(ALL_ABILITIES).slice(0, 3);
+  room.abilitySelect = {
+    options: options,
+    chosen: null
+  };
+  setKlppState(room, "ability_select");
 }
 
 function pauseKlppRoom(room){
@@ -919,7 +990,12 @@ function klppPhaseDurationMs(room){
   const state = room.state;
   if(state === "launch") return KLPP_LAUNCH_MS;
   if(state === "round_intro") return KLPP_ROUND_INTRO_MS;
-  if(state === "answer") return room.settings.answerSeconds * 1000;
+  if(state === "answer") {
+    let base = room.settings.answerSeconds * 1000;
+    if(room.roundActiveAbility === "freeze_timer") base += 25000;
+    if(room.roundActiveAbility === "reduce_timer") base = Math.max(20000, base - 25000);
+    return base;
+  }
   if(state === "vote"){
     const vote = getKlppCurrentVote(room);
     if(vote && (vote.leftMissing || vote.rightMissing)) return KLPP_VOTE_REVEAL_MS;
@@ -927,6 +1003,7 @@ function klppPhaseDurationMs(room){
   }
   if(state === "vote_result") return KLPP_VOTE_RESULT_MS;
   if(state === "round_score") return KLPP_ROUND_SCORE_MS;
+  if(state === "ability_select") return 10000;
   return 0;
 }
 
@@ -988,9 +1065,9 @@ function klppViewerCurrentAssignment(room, clientId){
   };
 }
 
-function klppHideAuthorsNow(room, vote){
-  // Author hidden when anonymous is on AND we are still in voting phase (vote.result not yet computed)
-  return Boolean(room.settings && room.settings.anonymousAnswers && room.state === "vote" && (!vote || !vote.result));
+function klppHideAuthorsNow(room, vote, viewerClientId){
+  const isSpy = room.roundActiveAbility === "spy" && viewerClientId && viewerClientId === (listKlppPlayers(room)[0] ? listKlppPlayers(room)[0].clientId : "");
+  return Boolean(room.settings && room.settings.anonymousAnswers && room.state === "vote" && (!vote || !vote.result) && !isSpy);
 }
 
 function klppViewerVote(room, clientId, players){
@@ -1000,7 +1077,7 @@ function klppViewerVote(room, clientId, players){
   const eligible = listKlppEligibleVoters(room, vote);
   const isAuthor = clientId === vote.leftClientId || clientId === vote.rightClientId;
   const canVote = eligible.indexOf(clientId) !== -1;
-  const hideAuthors = klppHideAuthorsNow(room, vote);
+  const hideAuthors = klppHideAuthorsNow(room, vote, clientId);
   return {
     pairId: vote.pairId,
     questionText: vote.questionText,
@@ -1038,7 +1115,7 @@ function klppSerializeCurrentVote(room, nameMap){
   if(!vote) return null;
   const eligible = listKlppEligibleVoters(room, vote);
   const votesGiven = Object.keys(vote.votes || {}).filter(function(voter){ return eligible.indexOf(voter) !== -1; }).length;
-  const hideAuthors = klppHideAuthorsNow(room, vote);
+  const hideAuthors = klppHideAuthorsNow(room, vote, null);
   const isReverse = room.currentRound && room.currentRound.type === "reverse";
   // In vote phase, always show full question. For reverse_round: questionText = punchline, leftText/rightText = player-written questions.
   // Labels flip accordingly.
@@ -1121,6 +1198,9 @@ function serializeKlppRoom(room, req){
     totalRounds: room.settings.roundCount,
     isLastRound: (room.roundIndex || 0) >= room.settings.roundCount,
     activeModifiers: klppActiveModifiersForRound(room),
+    activeAbility: room.activeAbility || null,
+    roundActiveAbility: room.roundActiveAbility || null,
+    abilitySelect: room.abilitySelect ? clone(room.abilitySelect) : null,
     players: players.map(function(player, index){
       const playerAssignments = klppViewerAssignments(room, player.clientId);
       const playerAnsweredCount = playerAssignments.filter(function(item){ return item.status !== "pending"; }).length;
@@ -1734,6 +1814,44 @@ const server = http.createServer(async function(req, res){
       currentVote.votes = currentVote.votes || {};
       currentVote.votes[clientId] = targetClientId;
       tickKlppRoom(room);
+      broadcastKlppRoom(room);
+      sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
+  const klppAbilityMatch = pathname.match(/^\/api\/klpp\/room\/([^/]+)\/ability$/);
+  if(req.method === "POST" && klppAbilityMatch){
+    try{
+      const room = getKlppRoom(klppAbilityMatch[1]);
+      if(!room){
+        sendJson(res, 404, {ok: false, error: "Room not found"});
+        return;
+      }
+      if(room.state !== "ability_select"){
+        sendJson(res, 409, {ok: false, error: "Не та фаза"});
+        return;
+      }
+      const body = await parseBody(req);
+      if(!hasKlppLeaderAccess(room, body)){
+        sendJson(res, 403, {ok: false, error: "Только owner-игрок может выбирать способность"});
+        return;
+      }
+      const abilityId = String(body.abilityId || "").trim();
+      if(!room.abilitySelect || !room.abilitySelect.options.some(function(o){ return o.id === abilityId; })){
+        sendJson(res, 400, {ok: false, error: "Недопустимый выбор"});
+        return;
+      }
+      room.abilitySelect.chosen = abilityId;
+      room.activeAbility = abilityId;
+      
+      // Auto-advance since selection is made
+      room.abilitySelect = null;
+      setupKlppRound(room);
+      setKlppState(room, "round_intro");
+      
       broadcastKlppRoom(room);
       sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
     }catch(error){

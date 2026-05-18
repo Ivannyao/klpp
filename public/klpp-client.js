@@ -304,6 +304,8 @@
     playerAnswerSubmit: id("playerAnswerSubmit"),
     playerVoteList: id("playerVoteList"),
     playerScoreboard: id("playerScoreboard"),
+    playerAbilitySelect: id("playerAbilitySelect"),
+    playerAbilityOptions: id("playerAbilityOptions"),
     playerMessage: id("playerMessage"),
     playerList: id("playerList")
   };
@@ -556,7 +558,7 @@
   /* ───── Local phase timer ───── */
 
   function startLocalTimerIfNeeded(snap){
-    var hasTimer = snap && snap.phaseEndsAt > 0 && (snap.state === "answer" || snap.state === "vote" || snap.state === "round_intro" || snap.state === "round_score" || snap.state === "vote_result" || snap.state === "launch");
+    var hasTimer = snap && snap.phaseEndsAt > 0 && (snap.state === "answer" || snap.state === "vote" || snap.state === "round_intro" || snap.state === "round_score" || snap.state === "vote_result" || snap.state === "launch" || snap.state === "ability_select");
     if(!hasTimer){
       stopLocalTimer();
       hideTimers();
@@ -589,8 +591,8 @@
     var pct = Math.max(0, Math.min(100, (remainMs / totalMs) * 100));
     var secs = Math.ceil(remainMs / 1000);
 
-    var showOnPlayer = state.view === "player" && (snap.state === "answer" || snap.state === "vote");
-    var showOnHost = state.view === "host" && (snap.state === "answer" || snap.state === "vote");
+    var showOnPlayer = state.view === "player" && (snap.state === "answer" || snap.state === "vote" || snap.state === "ability_select");
+    var showOnHost = state.view === "host" && (snap.state === "answer" || snap.state === "vote" || snap.state === "ability_select");
 
     // Tick sound in last 5 seconds
     if((showOnPlayer || showOnHost) && remainMs > 0 && remainMs <= 5000){
@@ -1063,7 +1065,7 @@
       if (hostVoteSunburst) hostVoteSunburst.hidden = true;
     }
 
-    var hideLobbyStuff = inAnswer || inVote;
+    var hideLobbyStuff = inAnswer || inVote || (state === "ability_select");
     if (qrCard) qrCard.style.display = hideLobbyStuff ? "none" : "";
     if (roomCode) roomCode.style.display = hideLobbyStuff ? "none" : "";
     if (roomCopy) roomCopy.style.display = hideLobbyStuff ? "none" : "";
@@ -1117,6 +1119,9 @@
     } else if(state === "finished"){
       prompt = "Игра закончилась";
       body = renderHostScoreboard((snap.lastRoundResult && snap.lastRoundResult.scoreboard) || snap.scoreboard, snap, true);
+    } else if(state === "ability_select" && snap.abilitySelect){
+      prompt = "Выбор способностей лидера";
+      body = renderHostAbilitySelect(snap);
     } else if(state === "paused"){
       prompt = "Пауза";
       body = "<p class=\"panel-copy\">Хост поставил игру на паузу.</p>";
@@ -1135,6 +1140,21 @@
 
     els.hostStagePrompt.textContent = prompt;
     els.hostStageBody.innerHTML = body;
+  }
+
+  function renderHostAbilitySelect(snap){
+    var options = snap.abilitySelect.options || [];
+    var html = '<div class="stage-vote-pair" style="gap:20px; display:flex; justify-content:center;">';
+    options.forEach(function(opt){
+      var isChosen = snap.abilitySelect.chosen === opt.id;
+      html += '<div class="vote-card' + (isChosen ? ' winner' : '') + '" style="flex:1; max-width:320px; text-align:center; padding:30px 20px; border-width:4px; border-radius:24px;' + (isChosen ? ' box-shadow:0 0 30px #ffd700;' : '') + '">' +
+        '<div style="font-size:64px; margin-bottom:15px; animation: klpp-drunk-float 3s ease-in-out infinite;">' + escapeHtml(opt.icon) + '</div>' +
+        '<h3 style="font-size:22px; margin:0 0 10px; font-weight:900;">' + escapeHtml(opt.name) + '</h3>' +
+        '<p style="font-family:Inter,sans-serif; font-size:14px; color:#555; margin:0;">' + escapeHtml(opt.description) + '</p>' +
+      '</div>';
+    });
+    html += '</div>';
+    return html;
   }
 
   function renderHostVotePair(vote, snap, showResult){
@@ -1338,6 +1358,8 @@
     els.playerAnswerForm.hidden = !hasPending;
     els.playerVoteList.hidden = !(stateName === "vote" && viewer.vote);
     els.playerScoreboard.hidden = !(stateName === "round_score" || stateName === "finished" || stateName === "vote_result");
+    var isAbilitySelectPhase = stateName === "ability_select";
+    els.playerAbilitySelect.hidden = !isAbilitySelectPhase;
 
     if(inLobby){
       renderPlayerLobby(snap);
@@ -1351,6 +1373,8 @@
       renderPlayerVoteResult(snap);
     } else if(stateName === "round_score"){
       renderPlayerScoreboard(snap, false);
+    } else if(stateName === "ability_select"){
+      renderPlayerAbilitySelect(snap);
     } else if(stateName === "finished"){
       renderPlayerScoreboard(snap, true);
     } else if(stateName === "paused"){
@@ -1595,6 +1619,74 @@
         '<span class="score-value">' + (item.score || 0) + '</span>' +
       '</div>';
     }).join("");
+  }
+
+  async function selectAbility(abilityId){
+    try {
+      await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/ability", {
+        method: "POST",
+        body: {
+          clientId: state.clientId,
+          abilityId: abilityId
+        }
+      });
+      klppAudio.click();
+    } catch(error) {
+      alert("Ошибка при выборе способности: " + (error.message || error));
+    }
+  }
+
+  function renderPlayerAbilitySelect(snap){
+    var viewer = snap.viewer || {};
+    var isLeader = Boolean(viewer.isLeader);
+    
+    els.playerTitle.textContent = "Выбор способности";
+    els.playerSubtitle.textContent = isLeader 
+      ? "Выберите суперспособность на следующий раунд!"
+      : "Лидер выбирает суперспособность на следующий раунд...";
+
+    if(!snap.abilitySelect){
+      els.playerAbilitySelect.hidden = true;
+      els.playerMessage.className = "player-message player-wait";
+      els.playerMessage.textContent = "Способность выбрана! Начинаем раунд...";
+      els.playerMessage.hidden = false;
+      return;
+    }
+
+    if(isLeader){
+      els.playerAbilitySelect.hidden = false;
+      els.playerMessage.hidden = true;
+      
+      var options = snap.abilitySelect.options || [];
+      var html = "";
+      options.forEach(function(opt){
+        var isChosen = snap.abilitySelect.chosen === opt.id;
+        html += '<button class="vote-card" type="button" style="text-align:left; width:100%; margin-bottom:10px;" data-ability-id="' + opt.id + '"' + (isChosen ? ' data-chosen="true"' : '') + '>' +
+          '<div style="display:flex; align-items:center; gap:12px;">' +
+            '<div style="font-size:32px;">' + escapeHtml(opt.icon) + '</div>' +
+            '<div>' +
+              '<strong style="font-size:16px; display:block; margin-bottom:4px;">' + escapeHtml(opt.name) + '</strong>' +
+              '<span style="font-family:Inter,sans-serif; font-size:13px; color:#555;">' + escapeHtml(opt.description) + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</button>';
+      });
+      els.playerAbilityOptions.innerHTML = html;
+
+      // Add click handlers
+      Array.prototype.forEach.call(els.playerAbilityOptions.children, function(btn){
+        btn.addEventListener("click", function(){
+          var abilityId = btn.getAttribute("data-ability-id");
+          selectAbility(abilityId);
+        });
+      });
+    } else {
+      els.playerAbilitySelect.hidden = true;
+      els.playerMessage.className = "player-message player-wait";
+      els.playerMessage.hidden = false;
+      els.playerMessage.textContent = "Лидер выбирает способность из 3 вариантов...";
+      els.playerAbilityOptions.innerHTML = "";
+    }
   }
 
   function renderPlayerList(snap){
