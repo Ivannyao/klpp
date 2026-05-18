@@ -246,7 +246,7 @@ const KLPP_MODIFIERS = {
     id: "steal",
     name: "Грабёж",
     icon: "🦹",
-    description: "Победитель крадёт у соперника",
+    description: "Победитель крадёт 25% очков у соперника",
     minPlayers: 2,
     transformScore: function(ctx){
       const delta = Math.round(Math.abs(ctx.leftBase - ctx.rightBase) * 0.25);
@@ -259,7 +259,7 @@ const KLPP_MODIFIERS = {
     id: "combo",
     name: "Комбо",
     icon: "🔥",
-    description: "Победы подряд дают множитель",
+    description: "Победы подряд дают бонус +25% за каждую серию",
     minPlayers: 2,
     transformScore: function(ctx){
       const combo = ctx.room.combo || {};
@@ -285,7 +285,7 @@ const KLPP_MODIFIERS = {
   },
   reverse_round: {id:"reverse_round", name:"Раунд наоборот", icon:"❓", description:"Игроки придумывают вопрос под готовый ответ", minPlayers:2, notImplemented:true},
   blind_round: {id:"blind_round", name:"Слепой раунд", icon:"🙈", description:"Виден только формат ответа", minPlayers:2, notImplemented:true},
-  drunk_mode: {id:"drunk_mode", name:"Пьяный режим", icon:"🍺", description:"UI начинает шататься", minPlayers:2, notImplemented:true},
+  drunk_mode: {id:"drunk_mode", name:"Пьяный режим", icon:"🍺", description:"Интерфейс начинает шататься и плыть", minPlayers:2},
   leader_abilities: {id:"leader_abilities", name:"Способности лидера", icon:"👑", description:"Лидер получает способности после раунда", minPlayers:3, notImplemented:true}
 };
 

@@ -36,8 +36,194 @@
     lastChosenVote: "",
     availableModifiers: [],
     selectedModifiersDraft: [],
-    lastTransitionRound: 0
+    lastTransitionRound: 0,
+    prevSnapState: "",
+    comboStreaks: {}
   };
+
+  /* ───── Web Audio Sound Engine ───── */
+  var klppAudio = (function(){
+    var ctx = null;
+    var muted = false;
+
+    function getCtx(){
+      if(!ctx){
+        try{ ctx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ return null; }
+      }
+      // Resume if suspended (browser autoplay policy)
+      if(ctx.state === "suspended") ctx.resume().catch(function(){});
+      return ctx;
+    }
+
+    function playTone(frequency, type, duration, volume, delay, fadeOut){
+      var c = getCtx();
+      if(!c || muted) return;
+      var osc = c.createOscillator();
+      var gain = c.createGain();
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.type = type || "sine";
+      osc.frequency.setValueAtTime(frequency, c.currentTime + (delay || 0));
+      gain.gain.setValueAtTime(volume || 0.15, c.currentTime + (delay || 0));
+      if(fadeOut !== false){
+        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + (delay || 0) + duration);
+      }
+      osc.start(c.currentTime + (delay || 0));
+      osc.stop(c.currentTime + (delay || 0) + duration);
+    }
+
+    function playNoise(duration, volume, delay){
+      var c = getCtx();
+      if(!c || muted) return;
+      var bufSize = c.sampleRate * duration;
+      var buf = c.createBuffer(1, bufSize, c.sampleRate);
+      var data = buf.getChannelData(0);
+      for(var i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+      var src = c.createBufferSource();
+      var gain = c.createGain();
+      var filter = c.createBiquadFilter();
+      src.buffer = buf;
+      filter.type = "bandpass";
+      filter.frequency.value = 400;
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(c.destination);
+      gain.gain.setValueAtTime(volume || 0.08, c.currentTime + (delay || 0));
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + (delay || 0) + duration);
+      src.start(c.currentTime + (delay || 0));
+      src.stop(c.currentTime + (delay || 0) + duration);
+    }
+
+    return {
+      unlock: function(){
+        // Call on first user interaction to unlock audio context
+        getCtx();
+      },
+      tick: function(){
+        // Short dry tick for countdown
+        playTone(880, "square", 0.04, 0.08, 0);
+      },
+      finalTick: function(){
+        // Last 3 ticks - higher pitch
+        playTone(1200, "square", 0.06, 0.12, 0);
+      },
+      roundStart: function(){
+        // Rising arpeggio
+        playTone(330, "sawtooth", 0.12, 0.1, 0);
+        playTone(440, "sawtooth", 0.12, 0.1, 0.1);
+        playTone(550, "sawtooth", 0.12, 0.1, 0.2);
+        playTone(660, "sawtooth", 0.18, 0.15, 0.3);
+      },
+      voteStart: function(){
+        // Drum roll feel
+        playTone(200, "sine", 0.15, 0.12, 0);
+        playTone(250, "sine", 0.12, 0.1, 0.15);
+        playTone(300, "sine", 0.2, 0.15, 0.28);
+      },
+      win: function(){
+        // Cheerful fanfare
+        playTone(523, "triangle", 0.1, 0.15, 0);
+        playTone(659, "triangle", 0.1, 0.15, 0.1);
+        playTone(784, "triangle", 0.15, 0.15, 0.2);
+        playTone(1047, "triangle", 0.25, 0.18, 0.32);
+        playNoise(0.3, 0.06, 0.35);
+      },
+      lose: function(){
+        // Sad womp-womp
+        playTone(300, "sawtooth", 0.15, 0.1, 0);
+        playTone(240, "sawtooth", 0.2, 0.1, 0.15);
+        playTone(200, "sawtooth", 0.25, 0.08, 0.3);
+      },
+      steal: function(){
+        // Sneaky staccato
+        playTone(800, "sawtooth", 0.05, 0.12, 0);
+        playTone(600, "sawtooth", 0.05, 0.1, 0.07);
+        playTone(400, "sawtooth", 0.1, 0.15, 0.14);
+        playNoise(0.15, 0.08, 0.14);
+      },
+      combo: function(streak){
+        // Higher pitch per streak level
+        var base = 440 + streak * 60;
+        playTone(base, "triangle", 0.08, 0.12, 0);
+        playTone(base * 1.25, "triangle", 0.08, 0.12, 0.09);
+        playTone(base * 1.5, "triangle", 0.15, 0.15, 0.18);
+      },
+      finish: function(){
+        // Big ending fanfare
+        playTone(392, "triangle", 0.1, 0.14, 0);
+        playTone(494, "triangle", 0.1, 0.14, 0.1);
+        playTone(588, "triangle", 0.1, 0.14, 0.2);
+        playTone(784, "triangle", 0.3, 0.18, 0.3);
+        playNoise(0.5, 0.07, 0.35);
+        playTone(988, "triangle", 0.25, 0.15, 0.55);
+      },
+      answerSubmit: function(){
+        // Quick soft confirm
+        playTone(660, "sine", 0.08, 0.08, 0);
+        playTone(880, "sine", 0.1, 0.08, 0.07);
+      },
+      voteClick: function(){
+        // Satisfying click
+        playTone(440, "sine", 0.06, 0.1, 0);
+      }
+    };
+  })();
+
+  /* ───── Drunk Mode CSS ───── */
+  (function(){
+    var styleEl = document.createElement("style");
+    styleEl.id = "klpp-dynamic-styles";
+    styleEl.textContent = [
+      "@keyframes klpp-drunk-wobble {",
+      "  0%   { transform: rotate(0deg) translateX(0px); }",
+      "  15%  { transform: rotate(-1.5deg) translateX(-3px); }",
+      "  30%  { transform: rotate(1deg) translateX(2px); }",
+      "  45%  { transform: rotate(-0.8deg) translateX(-2px); }",
+      "  60%  { transform: rotate(1.2deg) translateX(3px); }",
+      "  75%  { transform: rotate(-1deg) translateX(-1px); }",
+      "  100% { transform: rotate(0deg) translateX(0px); }",
+      "}",
+      "@keyframes klpp-drunk-float {",
+      "  0%   { transform: translateY(0px) rotate(0deg); }",
+      "  33%  { transform: translateY(-6px) rotate(0.8deg); }",
+      "  66%  { transform: translateY(4px) rotate(-0.6deg); }",
+      "  100% { transform: translateY(0px) rotate(0deg); }",
+      "}",
+      "body.drunk-mode { animation: klpp-drunk-wobble 2.2s ease-in-out infinite; transform-origin: center center; }",
+      "body.drunk-mode #screenPlayer { animation: klpp-drunk-float 3.5s ease-in-out infinite; }",
+      "body.drunk-mode #screenHost { animation: klpp-drunk-float 4s ease-in-out infinite reverse; }",
+      "body.drunk-mode input, body.drunk-mode button { filter: hue-rotate(20deg); }",
+      "@keyframes klpp-steal-flash {",
+      "  0%   { opacity:0; transform: scale(0.5) rotate(-10deg); }",
+      "  20%  { opacity:1; transform: scale(1.15) rotate(3deg); }",
+      "  80%  { opacity:1; transform: scale(1) rotate(0deg); }",
+      "  100% { opacity:0; transform: scale(0.8) rotate(5deg); }",
+      "}",
+      ".klpp-steal-flash {",
+      "  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);",
+      "  z-index:9999; pointer-events:none;",
+      "  font-size: clamp(2rem,8vw,5rem); font-weight:900;",
+      "  color:#fff; text-shadow: 0 0 20px #ff4400, 0 0 40px #ff8800;",
+      "  background: rgba(200,50,0,0.85); border-radius:16px;",
+      "  padding: 0.3em 0.7em; white-space:nowrap;",
+      "  animation: klpp-steal-flash 1.8s ease-in-out forwards;",
+      "}",
+      "@keyframes klpp-combo-pop {",
+      "  0%   { opacity:0; transform:scale(0.5) translateY(10px); }",
+      "  30%  { opacity:1; transform:scale(1.2) translateY(-4px); }",
+      "  70%  { opacity:1; transform:scale(1) translateY(0); }",
+      "  100% { opacity:0; transform:scale(0.9) translateY(-8px); }",
+      "}",
+      ".klpp-combo-badge {",
+      "  display:inline-block; padding:0.2em 0.5em; border-radius:12px;",
+      "  background: linear-gradient(135deg, #ff6b00, #ff0080);",
+      "  color:#fff; font-weight:900; font-size:1.1em;",
+      "  animation: klpp-combo-pop 2s ease-in-out forwards;",
+      "  box-shadow: 0 0 16px #ff660088;",
+      "}"
+    ].join("\n");
+    document.head.appendChild(styleEl);
+  })();
 
   var els = {
     screenHome: id("screenHome"),
@@ -130,6 +316,10 @@
   function id(value){ return document.getElementById(value); }
 
   function bindEvents(){
+    // Unlock audio on first interaction
+    document.addEventListener("click", function(){ klppAudio.unlock(); }, {once: true});
+    document.addEventListener("touchstart", function(){ klppAudio.unlock(); }, {once: true});
+
     els.desktopPlayButton.addEventListener("click", toggleRoleSplit);
     els.mobilePlayButton.addEventListener("click", toggleRoleSplit);
     els.desktopPlayerRoleButton.addEventListener("click", function(){ navigate("join", "", {backTarget:{view:"home", roomId:""}}); });
@@ -341,7 +531,23 @@
   /* ───── Snapshot dispatch ───── */
 
   function handleSnapshot(snap){
+    var prevState = state.prevSnapState;
     state.room = snap;
+
+    // Drunk mode: toggle body class based on active modifiers
+    var activeIds = (snap.activeModifiers || []).map(function(m){ return m && m.id; });
+    var isDrunk = activeIds.indexOf("drunk_mode") !== -1 &&
+      snap.state !== "lobby" && snap.state !== "launch" && snap.state !== "finished";
+    document.body.classList.toggle("drunk-mode", isDrunk);
+
+    // Sound triggers on state transitions
+    if(snap.state !== prevState){
+      if(snap.state === "round_intro") klppAudio.roundStart();
+      else if(snap.state === "vote") klppAudio.voteStart();
+      else if(snap.state === "finished") klppAudio.finish();
+    }
+    state.prevSnapState = snap.state;
+
     if(state.view === "host") renderHost(snap);
     else if(state.view === "player") renderPlayer(snap);
     startLocalTimerIfNeeded(snap);
@@ -385,6 +591,18 @@
 
     var showOnPlayer = state.view === "player" && (snap.state === "answer" || snap.state === "vote");
     var showOnHost = state.view === "host" && (snap.state === "answer" || snap.state === "vote");
+
+    // Tick sound in last 5 seconds
+    if((showOnPlayer || showOnHost) && remainMs > 0 && remainMs <= 5000){
+      var tickKey = Math.ceil(remainMs / 1000);
+      if(tickKey !== state._lastTickKey){
+        state._lastTickKey = tickKey;
+        if(tickKey <= 3) klppAudio.finalTick();
+        else klppAudio.tick();
+      }
+    } else {
+      state._lastTickKey = null;
+    }
 
     if(showOnPlayer){
       els.playerTimerBar.hidden = false;
@@ -541,6 +759,7 @@
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({clientId: state.clientId, pairId: pairId, text: text})
       });
+      klppAudio.answerSubmit();
       els.playerAnswerInput.value = "";
       showAnswerHint("", false);
     }catch(error){
@@ -603,6 +822,7 @@
     if(!snap || !snap.viewer || !snap.viewer.vote || !snap.viewer.vote.canVote) return;
     var pairId = snap.viewer.vote.pairId;
     state.lastChosenVote = targetClientId;
+    klppAudio.voteClick();
     try{
       await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/vote", {
         method: "POST",
@@ -1255,18 +1475,72 @@
     els.playerMessage.hidden = true;
     if(!vote || !vote.result){ els.playerScoreboard.innerHTML = ""; return; }
     var r = vote.result;
+    var myClientId = state.clientId;
+    var iAmLeft = r.leftClientId === myClientId;
+    var iAmRight = r.rightClientId === myClientId;
+    var iWon = (iAmLeft && r.leftPercent > r.rightPercent) || (iAmRight && r.rightPercent > r.leftPercent);
+    var iLost = (iAmLeft && r.leftPercent < r.rightPercent) || (iAmRight && r.rightPercent < r.leftPercent);
+    var activeIds = (snap.activeModifiers || []).map(function(m){ return m && m.id; });
+    var hasSteal = activeIds.indexOf("steal") !== -1;
+    var hasCombo = activeIds.indexOf("combo") !== -1;
+
+    // Sound effects
+    if(!state._lastVoteResultKey || state._lastVoteResultKey !== vote.pairId){
+      state._lastVoteResultKey = vote.pairId;
+      if(iAmLeft || iAmRight){
+        if(iWon){
+          if(hasSteal) klppAudio.steal();
+          else if(hasCombo){
+            var myStreak = (state.comboStreaks[myClientId] || 0);
+            klppAudio.combo(myStreak);
+          } else {
+            klppAudio.win();
+          }
+        } else if(iLost){
+          klppAudio.lose();
+        }
+      }
+      // Show steal flash for all players
+      if(hasSteal && r.leftPercent !== r.rightPercent){
+        showStealFlash(r.leftPercent > r.rightPercent ? r.leftNickname : r.rightNickname);
+      }
+    }
+
+    // Update combo streaks from result
+    if(hasCombo && r.leftPercent !== r.rightPercent){
+      var winner = r.leftPercent > r.rightPercent ? r.leftClientId : r.rightClientId;
+      var loser = r.leftPercent > r.rightPercent ? r.rightClientId : r.leftClientId;
+      state.comboStreaks[winner] = (state.comboStreaks[winner] || 0) + 1;
+      state.comboStreaks[loser] = 0;
+    }
+
     var leftName = escapeHtml(r.leftNickname);
     var rightName = escapeHtml(r.rightNickname);
+    var myStreakHtml = "";
+    if(hasCombo && (iAmLeft || iAmRight)){
+      var streak = state.comboStreaks[myClientId] || 0;
+      if(streak >= 2) myStreakHtml = ' <span class="klpp-combo-badge">🔥×' + streak + '</span>';
+    }
     els.playerScoreboard.innerHTML =
       '<div class="score-row' + (r.leftPercent >= r.rightPercent ? " winner" : "") + '">' +
-        '<span class="score-name">' + leftName + '</span>' +
+        '<span class="score-name">' + leftName + (iAmLeft ? myStreakHtml : "") + '</span>' +
         '<span class="score-value">' + r.leftPercent + "% · +" + r.leftScoreDelta + "</span>" +
       '</div>' +
       '<div class="score-row' + (r.rightPercent > r.leftPercent ? " winner" : "") + '">' +
-        '<span class="score-name">' + rightName + '</span>' +
+        '<span class="score-name">' + rightName + (iAmRight ? myStreakHtml : "") + '</span>' +
         '<span class="score-value">' + r.rightPercent + "% · +" + r.rightScoreDelta + "</span>" +
       '</div>';
     state.lastChosenVote = "";
+  }
+
+  function showStealFlash(winnerName){
+    var el = document.createElement("div");
+    el.className = "klpp-steal-flash";
+    el.textContent = "🦹 ГРАБЁЖ! " + (winnerName || "") + " крадёт очки!";
+    document.body.appendChild(el);
+    setTimeout(function(){
+      if(el.parentNode) el.parentNode.removeChild(el);
+    }, 2000);
   }
 
   function renderPlayerScoreboard(snap, isFinal){
