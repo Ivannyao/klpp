@@ -61,7 +61,70 @@ const KLPP_STARTER_QUESTIONS = [
   "Что точно не стоит говорить полицейскому, когда он остановил.",
   "Самая странная вещь, которую можно увидеть в чужом холодильнике.",
   "Какой звук точно не должна издавать машина.",
-  "Что мог бы написать кофе на чашке, если бы умел отвечать."
+  "Что мог бы написать кофе на чашке, если бы умел отвечать.",
+  "Самая позорная причина уволиться с первой работы.",
+  "Что бы сказал твой холодильник, открывшийся ночью.",
+  "Худший слоган для предвыборной кампании в детском саду.",
+  "Самое идиотское изобретение для кота.",
+  "Чем можно объяснить странный запах в маршрутке.",
+  "Какое последнее слово точно не стоит говорить экзаменатору.",
+  "Самый нелепый повод записаться к психотерапевту.",
+  "Что точно не должно быть напечатано на футболке учителя.",
+  "Самая странная вещь, которую можно найти на даче у бабушки.",
+  "Худший ник для онлайн-знакомств.",
+  "Какой тост точно не стоит произносить на дне рождения тёщи.",
+  "Самое бесполезное приложение, которое всё равно скачали миллионы.",
+  "Чем заменить будильник, если хочешь возненавидеть утро.",
+  "Какое объявление точно не приведёт клиентов в стоматологию.",
+  "Самая странная просьба коллеги в Slack в 3 часа ночи.",
+  "Что нельзя сказать первому свиданию, заказав сложное блюдо.",
+  "Самый нелепый сценарий новогоднего корпоратива.",
+  "Что бы сказал твой кот, если бы вёл подкаст про людей.",
+  "Какая фамилия точно не подойдёт для главного героя боевика.",
+  "Самая странная вещь, которую можно купить в дьюти-фри.",
+  "Что точно не должно быть в инструкции к пылесосу.",
+  "Самый плохой совет, который ты слышал от соседа сверху.",
+  "Какая поза для йоги точно не выйдет в инстаграм-альбом.",
+  "Что бы написал в дневнике человек, переживший знакомство с тёщей.",
+  "Самое неуместное напоминание от Google Calendar.",
+  "Какая фраза точно не успокоит плачущего ребёнка в самолёте.",
+  "Самый странный товар, который рекламирует звезда из 90-х.",
+  "Что нельзя кричать на стадионе во время важного матча.",
+  "Самая идиотская причина, из-за которой опоздал на собеседование.",
+  "Что мог бы сказать робот-пылесос, застрявший под диваном.",
+  "Самая странная татуировка, которую ты заметил у учителя.",
+  "Худший слоган для службы доставки еды.",
+  "Какое сообщение точно не пишут бывшему в три часа ночи.",
+  "Самая нелепая просьба от пассажира таксисту.",
+  "Что точно не должно быть в подарочном наборе на 8 марта.",
+  "Самый странный лот на аукционе б/у вещей.",
+  "Какая фраза точно не подойдёт для пожелания на свадьбу.",
+  "Самая дурацкая причина блокировки в социальной сети.",
+  "Что мог бы написать в резюме человек без скиллов.",
+  "Самая странная фраза, услышанная в общественной бане.",
+  "Какой совет точно не приведёт к успеху в стартапе.",
+  "Самое нелепое название книги по самопомощи.",
+  "Что точно не стоит говорить, когда ты пришёл занять денег.",
+  "Самая странная вещь, которую можно увидеть в окне напротив.",
+  "Худший комментарий под чужой фотографией с пляжа.",
+  "Самый нелепый способ объяснить, почему ты опоздал на свидание.",
+  "Что бы написал на надгробии человек с чёрным юмором.",
+  "Самая идиотская причина, из-за которой соседи вызвали полицию.",
+  "Какая фраза точно не успокоит таможенника.",
+  "Самый странный совет от твоей бабушки в детстве.",
+  "Что мог бы сказать гриб, если бы его собирали.",
+  "Самое неловкое сообщение, отправленное в общий чат вместо личного.",
+  "Какая мелодия точно не подходит в качестве рингтона на похороны.",
+  "Самое странное правило в подъезде многоквартирного дома.",
+  "Что точно не должно быть в гимне вашей компании.",
+  "Самый плохой выбор фильма для первого свидания.",
+  "Какой пункт точно не входит в идеальное утро.",
+  "Самое странное условие в брачном договоре.",
+  "Что нельзя сделать на видеосвязи с начальником.",
+  "Самая глупая причина пожаловаться в книгу жалоб.",
+  "Что мог бы написать в отзыве человек, проспавший весь сеанс.",
+  "Самая дурацкая идея для тематической вечеринки.",
+  "Какой вопрос точно не задают на собеседовании в Google."
 ];
 
 // Pool of ready-made punchlines for reverse_round modifier.
@@ -99,23 +162,42 @@ const KLPP_REVERSE_ANSWERS = [
   "Наука пока не объяснила."
 ];
 
-// Grammar hint categories for blind_round: maps question text to a short prompt.
-const KLPP_BLIND_HINTS = [
-  "КТО? 🙋",
-  "МЕСТО 📍",
-  "ДЕЙСТВИЕ 🏃",
-  "ПРИЧИНА 🤔",
-  "НАЗВАНИЕ 🏷️",
-  "ФРАЗА 💬",
-  "ПРЕДМЕТ 📦",
-  "СОБЫТИЕ ⚡"
+// Grammar hint categories for blind_round. Each rule is a regex+label pair
+// applied in order — first match wins. Hints are written so the player can
+// guess the answer shape without seeing the actual question.
+const KLPP_BLIND_HINT_RULES = [
+  // PHRASES — things you SAY / SHOULDN'T say / write / shout
+  { re: /\b(не\s+стоит|нельзя|не\s+надо|не\s+должен)\s+(сказать|говорить|кричать|произнес|написать|написа|пис)/, label: "ФРАЗА 💬 (что сказать?)" },
+  { re: /\bчто\s+(мог[а-я]*|можно|нельзя|точно|бы)\s+(сказать|кричать|написать|произнес|ответ)/, label: "ФРАЗА 💬 (что сказать?)" },
+  { re: /\b(тост|слоган|пожелание|клятв|алиби|оправдание|совет|комментарий|реплик|сообщение|надпись|объявление|отзыв)/, label: "ФРАЗА 💬 (что сказать или написать?)" },
+  { re: /\bчто\s+(скажет|написал|напишет)/, label: "ФРАЗА 💬 (что сказать?)" },
+  // NAMES & TITLES — слоганы, названия, имена, ники
+  { re: /\b(название|нелепое\s+название|имя|ник|фамил[ия])\b/, label: "НАЗВАНИЕ 🏷️ (как назвать?)" },
+  // PEOPLE — кто, личности
+  { re: /\b(кто|чей|чьё|чья)\b/, label: "ЛИЧНОСТЬ 🙋 (кого?)" },
+  { re: /\b(сосед|таксист|учитель|коллег|тёщ|родител|капитан|полицейск|инструктор|тренер|психотерапевт|стилист)/, label: "ЛИЧНОСТЬ 🙋 (кого?)" },
+  // PLACES
+  { re: /\b(где|куда|откуда|место|магазин|музей|лагерь|ресторан|кухн|столов|подъезд|маршрут|стадион|вечеринк|корпоратив)/, label: "МЕСТО 📍 (где?)" },
+  // OBJECTS
+  { re: /\b(подарок|вещь|предмет|товар|экспонат|татуировк|пароль|функция|меню|лот|приложение|изобретение|инструмент|подарочн|сценарий|идея)/, label: "ПРЕДМЕТ 📦 (что?)" },
+  // ACTIONS
+  { re: /\b(что\s+(делать|сделать)|сделать|сделал|изобрест|записаться|сходить|купить|съесть|включить)/, label: "ДЕЙСТВИЕ 🏃 (что сделать?)" },
+  // REASONS / CAUSES
+  { re: /\b(причина|повод|почему|зачем|из-за\s+чего|потому|объясн)/, label: "ПРИЧИНА 🤔 (почему?)" },
+  // EVENTS
+  { re: /\b(событие|правил|произош|случил|тимбилдинг|свидание|свадьб|новогодн)/, label: "СОБЫТИЕ ⚡ (что произошло?)" },
+  // SOUND / NOISE
+  { re: /\b(звук|мелоди|рингтон|пение|крик)/, label: "ЗВУК 🔊 (как звучит?)" }
 ];
 
+const KLPP_BLIND_HINT_DEFAULT = "ОТВЕТ 🎯 (что-нибудь смешное)";
+
 function klppBlindHintForQuestion(questionText){
-  // Deterministic hint from question text hash
-  let hash = 0;
-  for(let i = 0; i < questionText.length; i++) hash = (hash * 31 + questionText.charCodeAt(i)) >>> 0;
-  return KLPP_BLIND_HINTS[hash % KLPP_BLIND_HINTS.length];
+  const t = String(questionText || "").toLowerCase();
+  for(let i = 0; i < KLPP_BLIND_HINT_RULES.length; i += 1){
+    if(KLPP_BLIND_HINT_RULES[i].re.test(t)) return KLPP_BLIND_HINT_RULES[i].label;
+  }
+  return KLPP_BLIND_HINT_DEFAULT;
 }
 
 function takeKlppReverseAnswers(room, count){
@@ -235,9 +317,18 @@ function blankKlppSettings(){
 function sanitizeKlppSettings(input){
   const raw = Object.assign({}, KLPP_DEFAULT_SETTINGS, clone(input || {}));
   const modifierMode = ["off", "fixed", "random"].indexOf(raw.modifierMode) !== -1 ? raw.modifierMode : "off";
-  const selectedModifiers = Array.isArray(raw.selectedModifiers)
+  let selectedModifiers = Array.isArray(raw.selectedModifiers)
     ? raw.selectedModifiers.filter(function(id){ return typeof id === "string" && id.length > 0 && id.length < 40; }).slice(0, 16)
     : [];
+  // leader_abilities & ability_party are mutually exclusive — a round can give
+  // abilities to the leader OR throw an ability party, not both. If the host
+  // accidentally selected both, keep whichever was listed first.
+  const idxLeader = selectedModifiers.indexOf("leader_abilities");
+  const idxParty  = selectedModifiers.indexOf("ability_party");
+  if(idxLeader !== -1 && idxParty !== -1){
+    const drop = idxLeader < idxParty ? "ability_party" : "leader_abilities";
+    selectedModifiers = selectedModifiers.filter(function(id){ return id !== drop; });
+  }
   return {
     answerSeconds: Math.max(20, Math.min(180, Number(raw.answerSeconds) || KLPP_DEFAULT_SETTINGS.answerSeconds)),
     voteSeconds: Math.max(15, Math.min(120, Number(raw.voteSeconds) || KLPP_DEFAULT_SETTINGS.voteSeconds)),
@@ -313,13 +404,32 @@ const KLPP_MODIFIERS = {
     id: "steal",
     name: "Грабёж",
     icon: "🦹",
-    description: "Победитель крадёт 25% очков у соперника",
+    description: "Победитель крадёт очки у соперника, чем убедительнее победа — тем больше",
     minPlayers: 2,
+    skipInRound1: true,            // never appears in round 1 (nothing to steal yet)
     transformScore: function(ctx){
-      const delta = Math.round(Math.abs(ctx.leftBase - ctx.rightBase) * 0.25);
-      if(ctx.leftBase > ctx.rightBase) return {left: ctx.leftBase + delta, right: Math.max(0, ctx.rightBase - delta)};
-      if(ctx.rightBase > ctx.leftBase) return {left: Math.max(0, ctx.leftBase - delta), right: ctx.rightBase + delta};
-      return {left: ctx.leftBase, right: ctx.rightBase};
+      // Tie — no steal.
+      if(ctx.leftPercent === ctx.rightPercent) return {left: ctx.leftBase, right: ctx.rightBase};
+      const winnerSide = ctx.leftPercent > ctx.rightPercent ? "left" : "right";
+      const loserSide  = winnerSide === "left" ? "right" : "left";
+      const winnerId   = ctx.vote[winnerSide + "ClientId"];
+      const loserId    = ctx.vote[loserSide + "ClientId"];
+      const loserBank  = ctx.room.scoreboard[loserId] || 0;
+      // Nothing to steal if opponent has 0 points yet — leave base deltas alone.
+      if(loserBank <= 0) return {left: ctx.leftBase, right: ctx.rightBase};
+      // Decisiveness: 51% → tiny steal, 100% → up to 30% of loser's bank.
+      // (winnerPct - 50) / 50 = 0..1, multiplied by max ratio.
+      const winnerPct = winnerSide === "left" ? ctx.leftPercent : ctx.rightPercent;
+      const decisiveness = Math.max(0, (winnerPct - 50) / 50);
+      const stealRatio  = decisiveness * 0.3;
+      const stolen      = Math.round(loserBank * stealRatio);
+      return {
+        left:  winnerSide === "left"  ? ctx.leftBase + stolen  : ctx.leftBase - stolen,
+        right: winnerSide === "right" ? ctx.rightBase + stolen : ctx.rightBase - stolen,
+        stealAmount: stolen,
+        stealWinnerId: winnerId,
+        stealLoserId: loserId
+      };
     }
   },
   combo: {
@@ -382,8 +492,18 @@ function klppAssignModifiersToRound(room){
   const settings = room.settings;
   if(!settings || settings.modifierMode === "off") return [];
   const playerCount = (room.players || []).length;
-  const pool = klppValidateModifierList(settings.selectedModifiers, playerCount);
+  let pool = klppValidateModifierList(settings.selectedModifiers, playerCount);
   if(!pool.length) return [];
+  // Drop modifiers that don't make sense in round 1 (e.g. steal — nothing
+  // to steal yet because every player still has 0 points).
+  const roundNumber = (room.roundIndex || 0) + 1;
+  if(roundNumber <= 1){
+    pool = pool.filter(function(id){
+      const def = KLPP_MODIFIERS[id];
+      return !(def && def.skipInRound1);
+    });
+    if(!pool.length) return [];
+  }
   if(settings.modifierMode === "fixed") return pool.slice();
   // random mode: 1 random per round
   return [pool[Math.floor(Math.random() * pool.length)]];
@@ -451,6 +571,13 @@ function buildKlppQuestionPool(){
 
 function takeKlppRoundQuestions(room, count){
   const pool = buildKlppQuestionPool();
+  // If history covers more than 70% of pool, rotate the oldest out — this
+  // prevents "everything feels recently seen" after many games in one room
+  // while still avoiding back-to-back repeats.
+  const keepHistory = Math.floor(pool.length * 0.7);
+  if((room.questionHistory || []).length > keepHistory){
+    room.questionHistory = room.questionHistory.slice(-keepHistory);
+  }
   const unused = pool.filter(function(text){ return room.questionHistory.indexOf(text) === -1; });
   let source;
   if(unused.length >= count){
@@ -868,6 +995,9 @@ function finalizeKlppVote(room){
     rightScoreDelta: rightScoreDelta,
     doublePoints: Boolean(room.settings.doublePointsLastRound && isLastRound),
     modifierIds: (room.currentRound && room.currentRound.modifiers) ? room.currentRound.modifiers.slice() : [],
+    stealAmount: (transformed && typeof transformed.stealAmount === "number") ? transformed.stealAmount : 0,
+    stealWinnerId: (transformed && transformed.stealWinnerId) || "",
+    stealLoserId: (transformed && transformed.stealLoserId) || "",
     leftVoters: Object.keys(vote.votes || {}).filter(function(voterId){ return vote.votes[voterId] === vote.leftClientId; }).map(function(voterId){ return nameMap.get(voterId) || "Игрок"; }),
     rightVoters: Object.keys(vote.votes || {}).filter(function(voterId){ return vote.votes[voterId] === vote.rightClientId; }).map(function(voterId){ return nameMap.get(voterId) || "Игрок"; }),
     autoReason: autoReason

@@ -193,20 +193,25 @@
       "body.drunk-mode #screenPlayer { animation: klpp-drunk-float 3.5s ease-in-out infinite; }",
       "body.drunk-mode #screenHost { animation: klpp-drunk-float 4s ease-in-out infinite reverse; }",
       "body.drunk-mode input, body.drunk-mode button { filter: hue-rotate(20deg); }",
-      "@keyframes klpp-steal-flash {",
+      "@keyframes klpp-steal-bg { 0%,100%{opacity:0} 15%,85%{opacity:1} }",
+      "@keyframes klpp-steal-text {",
       "  0%   { opacity:0; transform: scale(0.5) rotate(-10deg); }",
       "  20%  { opacity:1; transform: scale(1.15) rotate(3deg); }",
       "  80%  { opacity:1; transform: scale(1) rotate(0deg); }",
       "  100% { opacity:0; transform: scale(0.8) rotate(5deg); }",
       "}",
-      ".klpp-steal-flash {",
-      "  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);",
-      "  z-index:9999; pointer-events:none;",
+      /* Full-viewport overlay so the steal flash covers any aspect ratio. */
+      ".klpp-steal-overlay {",
+      "  position:fixed; inset:0; z-index:9999; pointer-events:none;",
+      "  background: radial-gradient(ellipse at center, rgba(220,30,0,0.55) 0%, rgba(40,0,0,0.92) 80%);",
+      "  display:flex; align-items:center; justify-content:center;",
+      "  animation: klpp-steal-bg 1.8s ease-in-out forwards;",
+      "}",
+      ".klpp-steal-overlay__text {",
       "  font-size: clamp(2rem,8vw,5rem); font-weight:900;",
       "  color:#fff; text-shadow: 0 0 20px #ff4400, 0 0 40px #ff8800;",
-      "  background: rgba(200,50,0,0.85); border-radius:16px;",
-      "  padding: 0.3em 0.7em; white-space:nowrap;",
-      "  animation: klpp-steal-flash 1.8s ease-in-out forwards;",
+      "  padding: 0.3em 0.7em; max-width: 90vw; text-align: center; line-height: 1.1;",
+      "  animation: klpp-steal-text 1.8s ease-in-out forwards;",
       "}",
       "@keyframes klpp-combo-pop {",
       "  0%   { opacity:0; transform:scale(0.5) translateY(10px); }",
@@ -371,6 +376,12 @@
     if(els.hostRoundTransition){
       els.hostRoundTransition.classList.remove("active");
       els.hostRoundTransition.hidden = true;
+    }
+    // Always strip scoreboard chrome when navigating away from a host view —
+    // otherwise body keeps `scoreboard-active` from a previous match and the
+    // theatre curtains bleed onto the home menu and lobby screens.
+    if(view !== "host"){
+      document.body.classList.remove("scoreboard-active");
     }
     state.view = view;
     state.roomId = sanitizeRoomId(roomId || "");
@@ -1620,9 +1631,9 @@
           klppAudio.lose();
         }
       }
-      // Show steal flash for all players
-      if(hasSteal && r.leftPercent !== r.rightPercent){
-        showStealFlash(r.leftPercent > r.rightPercent ? r.leftNickname : r.rightNickname);
+      // Show steal flash for all players (only if steal actually triggered — server set stealAmount > 0)
+      if(hasSteal && r.stealAmount > 0){
+        showStealFlash(r.leftPercent > r.rightPercent ? r.leftNickname : r.rightNickname, r.stealAmount);
       }
     }
 
@@ -1653,14 +1664,17 @@
     state.lastChosenVote = "";
   }
 
-  function showStealFlash(winnerName){
-    var el = document.createElement("div");
-    el.className = "klpp-steal-flash";
-    el.textContent = "🦹 ГРАБЁЖ! " + (winnerName || "") + " крадёт очки!";
-    document.body.appendChild(el);
+  function showStealFlash(winnerName, amount){
+    var overlay = document.createElement("div");
+    overlay.className = "klpp-steal-overlay";
+    var text = document.createElement("div");
+    text.className = "klpp-steal-overlay__text";
+    text.textContent = "🦹 ГРАБЁЖ! " + (winnerName || "") + " крадёт " + (amount ? amount + " очков" : "очки") + "!";
+    overlay.appendChild(text);
+    document.body.appendChild(overlay);
     setTimeout(function(){
-      if(el.parentNode) el.parentNode.removeChild(el);
-    }, 2000);
+      if(overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }, 1900);
   }
 
   function renderPlayerScoreboard(snap, isFinal){
@@ -1863,6 +1877,22 @@
     };
   }
 
+  // leader_abilities and ability_party are mutually exclusive — a round
+  // hands abilities to either the leader or to everyone, never both.
+  var KLPP_MUTEX_GROUPS = [["leader_abilities", "ability_party"]];
+
+  function klppModifierConflicts(modId){
+    var draft = state.selectedModifiersDraft || [];
+    for(var i = 0; i < KLPP_MUTEX_GROUPS.length; i += 1){
+      var group = KLPP_MUTEX_GROUPS[i];
+      if(group.indexOf(modId) === -1) continue;
+      for(var j = 0; j < group.length; j += 1){
+        if(group[j] !== modId && draft.indexOf(group[j]) !== -1) return group[j];
+      }
+    }
+    return null;
+  }
+
   function renderModifierChecklist(){
     if(!els.settingsModifierList) return;
     var mods = state.availableModifiers || [];
@@ -1874,13 +1904,17 @@
     }
     els.settingsModifierList.hidden = false;
     els.settingsModifierList.innerHTML = '<div class="settings-modifier-list">' + mods.map(function(mod){
-      var disabled = mod.notImplemented;
-      var checked = !disabled && state.selectedModifiersDraft.indexOf(mod.id) !== -1;
+      var picked = state.selectedModifiersDraft.indexOf(mod.id) !== -1;
+      var conflictPartner = klppModifierConflicts(mod.id);
+      var disabled = mod.notImplemented || (!picked && conflictPartner !== null);
+      var hint = mod.description || "";
+      if(disabled && conflictPartner) hint += " · нельзя вместе с другим из этой группы";
+      else if(disabled && mod.notImplemented) hint += " · в следующих итерациях";
       return '<label class="modifier-row" data-disabled="' + (disabled ? "true" : "false") + '">' +
         '<span class="modifier-row__icon">' + escapeHtml(mod.icon || "✨") + '</span>' +
         '<span><span class="modifier-row__name">' + escapeHtml(mod.name) + '</span>' +
-        '<div class="modifier-row__hint">' + escapeHtml((mod.description || "") + (disabled ? " · в следующих итерациях" : "")) + '</div></span>' +
-        '<input type="checkbox" data-modifier-id="' + escapeHtml(mod.id) + '"' + (checked ? " checked" : "") + (disabled ? " disabled" : "") + '>' +
+        '<div class="modifier-row__hint">' + escapeHtml(hint) + '</div></span>' +
+        '<input type="checkbox" data-modifier-id="' + escapeHtml(mod.id) + '"' + (picked ? " checked" : "") + (disabled ? " disabled" : "") + '>' +
       '</label>';
     }).join("") + '</div>';
     Array.prototype.forEach.call(els.settingsModifierList.querySelectorAll("input[data-modifier-id]"), function(input){
@@ -1890,6 +1924,8 @@
         if(input.checked && idx === -1) state.selectedModifiersDraft.push(modId);
         if(!input.checked && idx !== -1) state.selectedModifiersDraft.splice(idx, 1);
         state.hostSettingsDirty = true;
+        // re-render so the mutex partner shows as disabled
+        renderModifierChecklist();
       });
     });
   }

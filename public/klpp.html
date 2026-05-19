@@ -446,6 +446,7 @@ img{display:block;max-width:100%}
   z-index: 15;
   transition: transform 1.5s cubic-bezier(0.65, 0, 0.35, 1);
   pointer-events: none;
+  display: none; /* hidden by default — only visible during scoreboard */
 }
 .curtain-left { left: 0; border-right: 8px solid #400; border-bottom-right-radius: 60px; transform: translateX(-100%); }
 .curtain-right { right: 0; border-left: 8px solid #400; border-bottom-left-radius: 60px; transform: translateX(100%); }
@@ -460,10 +461,30 @@ img{display:block;max-width:100%}
   transform: translateY(-100%);
   transition: transform 1.2s cubic-bezier(0.65, 0, 0.35, 1);
   pointer-events: none;
+  display: none; /* hidden by default — only visible during scoreboard */
 }
-.scoreboard-active .curtain-left { transform: translateX(0); }
-.scoreboard-active .curtain-right { transform: translateX(0); }
-.scoreboard-active .curtain-top { transform: translateY(0); }
+.scoreboard-active .curtain-left,
+.scoreboard-active .curtain-right,
+.scoreboard-active .curtain-top { display: block }
+.scoreboard-active .curtain-left { transform: translateX(0) }
+.scoreboard-active .curtain-right { transform: translateX(0) }
+.scoreboard-active .curtain-top { transform: translateY(0) }
+
+/* Scoreboard view: black backdrop, podium above curtains, hide all lobby chrome */
+.scoreboard-active .screen-host { background: #000 !important }
+.scoreboard-active .host-scene::before { display: none }
+.scoreboard-active .host-trash,
+.scoreboard-active .host-cloud,
+.scoreboard-active .host-qr-card,
+.scoreboard-active .host-room-code,
+.scoreboard-active .host-room-copy,
+.scoreboard-active .host-caption,
+.scoreboard-active .host-players,
+.scoreboard-active .host-modifiers,
+.scoreboard-active .host-lobby-panel,
+.scoreboard-active .video-bg,
+.scoreboard-active .sunburst-bg { display: none !important }
+.scoreboard-active .stage-panel.scoreboard-mode { z-index: 20 } /* above curtains (15/16) */
 
 /* --- Podium --- */
 .stage-panel.scoreboard-mode {
