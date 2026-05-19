@@ -440,7 +440,7 @@ img{display:block;max-width:100%}
 /* --- Theatrical Curtains --- */
 .curtain-left, .curtain-right {
   position: fixed;
-  top: 0; bottom: 0; width: 20vw;
+  top: 0; bottom: 0; width: 12vw;
   background: repeating-linear-gradient(to right, #800000 0%, #b30000 5%, #800000 10%);
   box-shadow: 0 0 30px rgba(0,0,0,0.9);
   z-index: 15;
@@ -484,7 +484,8 @@ img{display:block;max-width:100%}
 .scoreboard-active .host-lobby-panel,
 .scoreboard-active .video-bg,
 .scoreboard-active .sunburst-bg { display: none !important }
-.scoreboard-active .stage-panel.scoreboard-mode { z-index: 20 } /* above curtains (15/16) */
+/* Podium MUST be above all curtains (15/16) and any host chrome. */
+.scoreboard-active .stage-panel.scoreboard-mode { z-index: 100 !important; left: 50% !important; transform: translateX(-50%) !important; right: auto !important; width: min(96vw, 1100px) !important; max-width: 1100px; top: 14vh !important }
 
 /* --- Podium --- */
 .stage-panel.scoreboard-mode {
@@ -597,7 +598,6 @@ img{display:block;max-width:100%}
 </head>
 <body>
 <nav class="site-nav" aria-label="Главное меню">
-  <div class="brand">Pikuco</div>
   <input class="mobile-toggle" type="checkbox" id="mobileNav">
   <label class="hamburger" for="mobileNav" aria-label="Открыть меню"><span></span></label>
   <div class="nav-links">
@@ -605,7 +605,9 @@ img{display:block;max-width:100%}
   </div>
 </nav>
 
-<button class="back-button" id="backButton" hidden aria-label="Назад">&larr;</button>
+<button class="back-button" id="backButton" hidden aria-label="Назад">
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5 L7 12 L15 19" stroke="#111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+</button>
 
 <main>
   <section class="screen screen-home" id="screenHome">

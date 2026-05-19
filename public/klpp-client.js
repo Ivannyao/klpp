@@ -607,6 +607,10 @@
     els.playerTimerBar.hidden = true;
     els.hostStageTimer.hidden = true;
     if(els.hostVoteTimerCircleContainer) els.hostVoteTimerCircleContainer.hidden = true;
+    // Antigravity-added LED segmented timer wasn't being cleaned up — it stuck
+    // around on the lobby screen with a stale countdown like "73". Hide it too.
+    var segTimer = document.getElementById("hostSegmentedTimer");
+    if(segTimer) segTimer.hidden = true;
   }
 
   function tickLocalTimer(){
