@@ -38,7 +38,8 @@
     selectedModifiersDraft: [],
     lastTransitionRound: 0,
     prevSnapState: "",
-    comboStreaks: {}
+    comboStreaks: {},
+    devMode: false
   };
 
   /* ───── Web Audio Sound Engine ───── */
@@ -348,6 +349,15 @@
     }
     els.hostPauseButton.addEventListener("click", hostPauseToggle);
     els.hostEndButton.addEventListener("click", hostEnd);
+    // Dev mode wiring
+    var devBtn = document.getElementById("devLaunchButton");
+    if(devBtn) devBtn.addEventListener("click", devLaunch);
+    var devSkipPhase = document.getElementById("devSkipPhase");
+    if(devSkipPhase) devSkipPhase.addEventListener("click", function(){ devSkip("phase"); });
+    var devSkipRound = document.getElementById("devSkipRound");
+    if(devSkipRound) devSkipRound.addEventListener("click", function(){ devSkip("round"); });
+    var devEndGame = document.getElementById("devEndGame");
+    if(devEndGame) devEndGame.addEventListener("click", devEndGameClick);
     els.playerAnswerForm.addEventListener("submit", submitAnswer);
     els.characterNicknameInput.addEventListener("input", onNicknameInput);
     els.characterNicknameInput.addEventListener("blur", flushAvatarUpdate);
@@ -362,8 +372,9 @@
     var params = new URLSearchParams(window.location.search);
     var view = params.get("view") || "home";
     var roomId = sanitizeRoomId(params.get("room") || "");
+    var dev = params.get("dev") === "1";
     if(roomId) state.hostKey = sessionStorage.getItem("klppHostKey:" + roomId) || "";
-    if(view === "host" && roomId) return navigate("host", roomId);
+    if(view === "host" && roomId) return navigate("host", roomId, {dev: dev});
     if(view === "settings") return navigate("settings", roomId);
     if(view === "join") return navigate("join", roomId);
     if(view === "player" && roomId) return navigate("player", roomId);
@@ -386,12 +397,15 @@
     state.view = view;
     state.roomId = sanitizeRoomId(roomId || "");
     state.backTarget = options && options.backTarget ? options.backTarget : {view:"home", roomId:""};
+    if(options && typeof options.dev === "boolean") state.devMode = options.dev;
+    if(view !== "host") state.devMode = false;
     els.screenHome.hidden = view !== "home";
     els.screenSettings.hidden = view !== "settings";
     els.screenHost.hidden = view !== "host";
     els.screenJoin.hidden = view !== "join";
     els.screenPlayer.hidden = view !== "player";
     els.backButton.hidden = view === "home";
+    applyDevModeVisibility();
     syncUrl();
 
     if(view === "join"){
@@ -414,6 +428,7 @@
       var params = new URLSearchParams();
       params.set("view", state.view);
       if(state.roomId) params.set("room", state.roomId);
+      if(state.devMode) params.set("dev", "1");
       url += "?" + params.toString();
     }
     history.replaceState(null, "", url);
@@ -686,6 +701,59 @@
         body: JSON.stringify({hostKey: hostKey, settings: loadSettingsDraft()})
       });
     }catch(error){ /* ignore */ }
+  }
+
+  /* ─── DEV MODE ─────────────────────────────────────────────────── */
+  async function devLaunch(){
+    try{
+      var data = await api("/api/klpp/dev/start", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({botCount: 4, settings: loadSettingsDraft()})
+      });
+      state.hostKey = data.hostKey || "";
+      state.devMode = true;
+      if(data.room && data.room.id && state.hostKey){
+        sessionStorage.setItem("klppHostKey:" + data.room.id, state.hostKey);
+      }
+      navigate("host", data.room.id, {backTarget:{view:"home", roomId:""}, dev: true});
+    }catch(error){
+      alert("Dev режим не запустился: " + error.message);
+    }
+  }
+
+  async function devSkip(kind){
+    if(!state.roomId || !state.hostKey) return;
+    var times = kind === "round" ? 6 : 1; // round = enough skips to bulldoze through current round
+    for(var i = 0; i < times; i += 1){
+      try{
+        await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/dev/skip", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({hostKey: state.hostKey})
+        });
+      }catch(error){ break; }
+      // small gap so server tick can settle between phase jumps
+      if(kind === "round") await new Promise(function(r){ setTimeout(r, 250); });
+    }
+  }
+
+  async function devEndGameClick(){
+    if(!state.roomId || !state.hostKey) return;
+    try{
+      await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/end", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({hostKey: state.hostKey, showScore: true})
+      });
+    }catch(error){ /* ignore */ }
+  }
+
+  function applyDevModeVisibility(){
+    var devBtn = document.getElementById("devLaunchButton");
+    var devPanel = document.getElementById("devPanel");
+    if(devBtn) devBtn.hidden = state.view !== "home";
+    if(devPanel) devPanel.hidden = !(state.view === "host" && state.devMode);
   }
 
   async function hostPauseToggle(){

@@ -1076,6 +1076,9 @@ function beginKlppVoting(room){
 function tickKlppRoom(room){
   ensureKlppRoom(room);
   if(room.state === "paused" || room.state === "lobby" || !room.phaseStartedAt) return room;
+  // Drive bots BEFORE the phase-transition checks so their answers/votes
+  // are counted in the same tick that flips us into the next phase.
+  klppRunBotAutoplay(room);
   const now = Date.now();
   const elapsed = now - room.phaseStartedAt;
   if(room.state === "launch" && elapsed >= KLPP_LAUNCH_MS){
@@ -1390,7 +1393,8 @@ function serializeKlppRoom(room, req){
         isLastJoined: player.clientId === lastJoinedClientId,
         order: index,
         score: room.scoreboard[player.clientId] || 0,
-        isDoneAnswering: isDoneAnswering
+        isDoneAnswering: isDoneAnswering,
+        isBot: Boolean(player.isBot)
       };
     }),
     scoreboard: scoreboard,
@@ -1708,14 +1712,16 @@ function sanitizeKlppAvatar(input, fallback){
   return {color: color, face: face};
 }
 
-function upsertKlppPlayer(room, clientId, nickname, avatar){
+function upsertKlppPlayer(room, clientId, nickname, avatar, options){
   const safeClientId = String(clientId || "").trim().slice(0, 80);
   const safeNickname = String(nickname || "").trim().slice(0, 32) || "Игрок";
+  const isBot = Boolean(options && options.isBot);
   let player = room.players.find(function(item){ return item.clientId === safeClientId; });
   if(player){
     player.nickname = safeNickname;
     if(avatar) player.avatar = sanitizeKlppAvatar(avatar, player.avatar);
     player.lastSeenAt = Date.now();
+    if(isBot) player.isBot = true;
     return player;
   }
   player = {
@@ -1723,11 +1729,72 @@ function upsertKlppPlayer(room, clientId, nickname, avatar){
     nickname: safeNickname,
     avatar: sanitizeKlppAvatar(avatar),
     joinedAt: Date.now(),
-    lastSeenAt: Date.now()
+    lastSeenAt: Date.now(),
+    isBot: isBot
   };
   room.players.push(player);
   room.players.sort(function(a, b){ return a.joinedAt - b.joinedAt; });
   return player;
+}
+
+// Pool of canned bot answers so the game looks alive in dev mode.
+const KLPP_BOT_ANSWERS = [
+  "котик в свитере", "капибара", "тёща с метлой", "сосед сверху",
+  "пельмени без сметаны", "Wi-Fi 56kbps", "понедельник", "налоговая",
+  "Олег Винник в спортзале", "пингвин в шапке", "запах подъезда",
+  "бабушка с шваброй", "Bluetooth наушники у уха", "осенний депресс",
+  "директор школы в роликах", "забытая микроволновка", "электричка в Бологое"
+];
+function klppRandomBotAnswer(){
+  return KLPP_BOT_ANSWERS[Math.floor(Math.random() * KLPP_BOT_ANSWERS.length)];
+}
+
+// Bot autoplay: drives pending answers + votes for any isBot player while the
+// game is running. Called from tickKlppRoom every 300ms.
+function klppRunBotAutoplay(room){
+  if(!room || !room.players) return;
+  const now = Date.now();
+  const elapsed = now - (room.phaseStartedAt || now);
+
+  // ANSWER PHASE — bots fill in their pending assignments after a ~1.2s delay
+  if(room.state === "answer" && room.currentRound && elapsed > 1200){
+    const assignmentsByPlayer = room.currentRound.assignmentsByPlayer || {};
+    room.players.forEach(function(p){
+      if(!p.isBot) return;
+      const list = assignmentsByPlayer[p.clientId] || [];
+      list.forEach(function(assignment){
+        if(assignment.status !== "pending") return;
+        // Stagger by pair order so bots don't all answer simultaneously
+        const stagger = (assignment.order || 0) * 900 + Math.random() * 600;
+        if(elapsed < 1200 + stagger) return;
+        assignment.answerText = klppRandomBotAnswer();
+        assignment.submittedAt = Date.now();
+        assignment.status = "answered";
+      });
+    });
+  }
+
+  // VOTE PHASE — bots cast a random vote after reveal animation finishes
+  if(room.state === "vote" && room.currentRound && elapsed > KLPP_VOTE_REVEAL_MS + 800){
+    const vote = getKlppCurrentVote(room);
+    if(vote){
+      const eligible = listKlppEligibleVoters(room, vote);
+      room.players.forEach(function(p){
+        if(!p.isBot) return;
+        if(eligible.indexOf(p.clientId) === -1) return;
+        if(vote.votes && vote.votes[p.clientId]) return; // already voted
+        // Random pick weighted slightly toward not-missing answer
+        const leftValid = !vote.leftMissing;
+        const rightValid = !vote.rightMissing;
+        let target;
+        if(leftValid && !rightValid) target = vote.leftClientId;
+        else if(rightValid && !leftValid) target = vote.rightClientId;
+        else target = Math.random() < 0.5 ? vote.leftClientId : vote.rightClientId;
+        vote.votes = vote.votes || {};
+        vote.votes[p.clientId] = target;
+      });
+    }
+  }
 }
 
 function buildKlppSnapshot(room, viewerClientId){
@@ -1833,6 +1900,67 @@ const server = http.createServer(async function(req, res){
     }
     const room = createKlppRoom();
     sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req), hostKey: room.hostKey});
+    return;
+  }
+
+  // ─── DEV MODE ──────────────────────────────────────────────────────
+  // POST /api/klpp/dev/start
+  // Creates a room, fills it with bots, starts the game. Returns roomId +
+  // hostKey so the caller can navigate to host view and pause/skip from UI.
+  // Body (all optional): {botCount: 3..6, settings: {...}}
+  if(req.method === "POST" && pathname === "/api/klpp/dev/start"){
+    try{
+      if(!tryRateLimitRoomCreation(clientIp(req))){
+        sendJson(res, 429, {ok: false, error: "Слишком часто. Подожди немного."});
+        return;
+      }
+      const body = await parseBody(req);
+      const botCount = Math.max(3, Math.min(8, Number(body.botCount) || 3));
+      const room = createKlppRoom();
+      if(body.settings) room.settings = sanitizeKlppSettings(Object.assign({}, room.settings, body.settings));
+      const botNames = ["Robo-Лёха", "Бот-Маша", "ИИ-Витя", "Гена-Skynet", "Нейро-Зина", "GPT-Семён", "АвтоТаня", "Бот-Анон"];
+      const botColors = ["#ff6b6b","#4d96ff","#6bcb77","#ffd93d","#b388ff","#ff9f1c","#ff6f91","#00c2a8"];
+      const botFaces = ["smile","cool","nerd","sleepy","clown","alien","robot","mustache"];
+      for(let i = 0; i < botCount; i += 1){
+        upsertKlppPlayer(room, "bot-" + room.id.toLowerCase() + "-" + i, botNames[i % botNames.length], {color: botColors[i % botColors.length], face: botFaces[i % botFaces.length]}, {isBot: true});
+      }
+      startKlppGame(room);
+      broadcastKlppRoom(room);
+      sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req), hostKey: room.hostKey});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
+  // POST /api/klpp/room/:id/dev/skip
+  // Fast-forwards the current phase: pretend the timer fully expired,
+  // fill any missing answers, finalize current vote, advance to the next
+  // phase. hostKey-gated so randos can't grief a live match.
+  const klppDevSkipMatch = pathname.match(/^\/api\/klpp\/room\/([^/]+)\/dev\/skip$/);
+  if(req.method === "POST" && klppDevSkipMatch){
+    try{
+      const room = getKlppRoom(klppDevSkipMatch[1]);
+      if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+      const body = await parseBody(req);
+      if(!hasKlppHostAccess(room, body)){
+        sendJson(res, 403, {ok: false, error: "Только хост может скипать фазы"});
+        return;
+      }
+      switch(room.state){
+        case "launch":       setKlppState(room, "round_intro"); break;
+        case "round_intro":  setKlppState(room, "answer"); break;
+        case "answer":       beginKlppVoting(room); break;
+        case "vote":         finalizeKlppVote(room); break;
+        case "vote_result":  moveKlppToNextVoteOrScore(room); break;
+        case "round_score":  setupKlppRound(room); setKlppState(room, "round_intro"); break;
+        default: break;
+      }
+      broadcastKlppRoom(room);
+      sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
     return;
   }
 
