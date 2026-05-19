@@ -411,7 +411,16 @@ function klppRunModifierHook(room, hookName, payload){
     const def = KLPP_MODIFIERS[id];
     if(def && typeof def[hookName] === "function"){
       const next = def[hookName](result || {}, room);
-      if(next) result = next;
+      if(next){
+        if(hookName === "transformScore"){
+          result.leftBase = typeof next.left === "number" ? next.left : result.leftBase;
+          result.rightBase = typeof next.right === "number" ? next.right : result.rightBase;
+          result.left = result.leftBase;
+          result.right = result.rightBase;
+        } else {
+          result = next;
+        }
+      }
     }
   });
   return result;
