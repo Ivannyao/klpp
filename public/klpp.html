@@ -53,11 +53,10 @@ img{display:block;max-width:100%}
 .desktop-button:hover,.desktop-button:focus-visible{transform:scale(1.16) rotate(-4deg)}
 .desktop-button:hover .normal,.desktop-button:focus-visible .normal{opacity:0}
 
-/* The beer-gear PNG (157x177) puts its content noticeably up-left inside the
-   canvas (gear teeth extend mostly to the top, transparent padding fills the
-   bottom). Compensate by growing the box, nudging right and down so the
-   gear's visual centre aligns with the cap's visual centre. */
-.btn-settings .alt{width:66%;height:80%;transform:translate(-46%,-40%)}
+/* The beer-gear PNG (157x177) puts its content slightly up-and-left inside
+   the canvas. Compensate by growing the bounding box and shifting top/left
+   so the gear's visual centre lands on the cap's visual centre. */
+.btn-settings .alt{width:72%;height:86%;left:51%;top:56%;transform:translate(-50%,-50%)}
 
 /* Settings cap slowly spins around its centre inside the cloud pad.
    Translate is baked into keyframes so animation doesn't lose the centring. */
