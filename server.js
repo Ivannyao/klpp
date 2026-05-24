@@ -2250,6 +2250,65 @@ const server = http.createServer(async function(req, res){
     return;
   }
 
+  // ─── MEME IMAGE UPLOAD ─────────────────────────────────────────────
+  // POST /api/klpp/upload-meme
+  // Accepts JSON { data: "base64-jpeg-string" }
+  // Client-side Canvas converts any image to JPEG before sending.
+  // Server validates JPEG header, enforces 512KB limit, saves to uploads/.
+  if(req.method === "POST" && pathname === "/api/klpp/upload-meme"){
+    try {
+      const body = await parseBody(req);
+      const b64 = String(body.data || "");
+      if(!b64) {
+        sendJson(res, 400, {ok: false, error: "Нет данных изображения"});
+        return;
+      }
+      // Strip optional data URI prefix
+      const raw = b64.replace(/^data:image\/[a-z+]+;base64,/, "");
+      const buf = Buffer.from(raw, "base64");
+
+      // Validate size (max 512KB)
+      if(buf.length > 512 * 1024) {
+        sendJson(res, 400, {ok: false, error: "Изображение слишком большое (макс. 512KB после сжатия)"});
+        return;
+      }
+      if(buf.length < 100) {
+        sendJson(res, 400, {ok: false, error: "Слишком маленький файл — вероятно повреждён"});
+        return;
+      }
+
+      // Validate JPEG magic bytes: FF D8 FF
+      if(buf[0] !== 0xFF || buf[1] !== 0xD8 || buf[2] !== 0xFF) {
+        sendJson(res, 400, {ok: false, error: "Файл не является валидным JPEG"});
+        return;
+      }
+
+      // Ensure uploads dir exists
+      const uploadsDir = path.join(PUBLIC_DIR, "klpp-assets", "memes", "uploads");
+      if(!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, {recursive: true});
+      }
+
+      // Count existing uploads — hard cap at 200 files to prevent abuse
+      const existingFiles = fs.readdirSync(uploadsDir).filter(f => f.endsWith(".jpg"));
+      if(existingFiles.length >= 200) {
+        sendJson(res, 400, {ok: false, error: "Достигнут лимит загруженных изображений (200). Удалите старые."});
+        return;
+      }
+
+      // Generate random filename
+      const filename = "meme_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8) + ".jpg";
+      const filePath = path.join(uploadsDir, filename);
+      fs.writeFileSync(filePath, buf);
+
+      const url = "/klpp-assets/memes/uploads/" + filename;
+      sendJson(res, 200, {ok: true, url: url, size: buf.length});
+    } catch(error) {
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
   if(req.method === "GET" && pathname === "/api/klpp/question-sets"){
     sendJson(res, 200, {ok: true, questionSets: loadQuestionSets()});
     return;

@@ -2637,6 +2637,7 @@
     grid.innerHTML = (memes || []).map(function(m, idx){
       var deleteBtn = disabled ? "" : '<button class="delete-meme-btn" type="button" onclick="window.klppDeleteMeme(' + idx + ')">×</button>';
       var disabledAttr = disabled ? " disabled" : "";
+      var uploadBtn = disabled ? "" : '<button type="button" class="meme-upload-btn" onclick="window.klppUploadMemeImage(' + idx + ')" style="font-size:11px; font-weight:900; padding:6px 10px; border:2px solid #111; border-radius:10px; background:#ffd93d; color:#111; cursor:pointer; text-transform:uppercase;">📁 Загрузить файл</button>';
       return '<div class="editor-meme-card" data-index="' + idx + '">' +
         deleteBtn +
         '<img class="meme-preview" src="' + escapeHtml(m.url) + '" onerror="this.src=\'data:image/svg+xml;utf8,<svg viewBox=\\\'0 0 100 100\\\' xmlns=\\\'http://www.w3.org/2000/svg\\\'> <rect width=\\\'100\\\' height=\\\'100\\\' fill=\\\'%23eee\\\'/> <text x=\\\'50%\\\' y=\\\'50%\\\' dominant-baseline=\\\'middle\\\' text-anchor=\\\'middle\\\' font-size=\\\'10\\\' fill=\\\'%23999\\\'>Ошибка загрузки</text></svg>\'">' +
@@ -2646,6 +2647,7 @@
         '<label style="display:grid; gap:4px; font-size:11px; text-transform:uppercase; font-weight:900; text-align:left;">Ссылка на картинку' +
           '<input type="text" class="meme-url-input" value="' + escapeHtml(m.url) + '" oninput="window.klppUpdateMeme(' + idx + ', \'url\', this.value)"' + disabledAttr + '>' +
         '</label>' +
+        uploadBtn +
       '</div>';
     }).join("");
   }
@@ -2669,12 +2671,123 @@
     }
   };
 
+  // Image upload helpers
+  var MEME_MAX_WIDTH = 1200;
+  var MEME_MAX_HEIGHT = 1200;
+  var MEME_JPEG_QUALITY = 0.85;
+
+  function compressImageToJpegBase64(file, callback) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var w = img.width;
+        var h = img.height;
+        if(w > MEME_MAX_WIDTH || h > MEME_MAX_HEIGHT) {
+          var ratio = Math.min(MEME_MAX_WIDTH / w, MEME_MAX_HEIGHT / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        var canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        var jpegData = canvas.toDataURL("image/jpeg", MEME_JPEG_QUALITY);
+        callback(null, jpegData);
+      };
+      img.onerror = function() {
+        callback(new Error("Не удалось прочитать изображение"));
+      };
+      img.src = e.target.result;
+    };
+    reader.onerror = function() {
+      callback(new Error("Ошибка чтения файла"));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function uploadMemeImage(file) {
+    return new Promise(function(resolve, reject) {
+      compressImageToJpegBase64(file, async function(err, jpegData) {
+        if(err) { reject(err); return; }
+        try {
+          var res = await api("/api/klpp/upload-meme", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ data: jpegData })
+          });
+          if(res.url) {
+            resolve(res.url);
+          } else {
+            reject(new Error(res.error || "Ошибка загрузки"));
+          }
+        } catch(e) {
+          reject(e);
+        }
+      });
+    });
+  }
+
+  window.klppUploadMemeImage = function(idx) {
+    if(!state.editorCurrentSet || !state.editorCurrentSet.memes[idx]) return;
+    var input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async function() {
+      var file = input.files[0];
+      if(!file) return;
+      if(file.size > 10 * 1024 * 1024) {
+        alert("Файл слишком большой (макс. 10MB). Пожалуйста, выберите файл меньшего размера.");
+        return;
+      }
+      var card = document.querySelector('.editor-meme-card[data-index="' + idx + '"]');
+      var btn = card ? card.querySelector('.meme-upload-btn') : null;
+      if(btn) { btn.textContent = "🔄 Загрузка..."; btn.disabled = true; }
+      try {
+        var url = await uploadMemeImage(file);
+        state.editorCurrentSet.memes[idx].url = url;
+        renderEditorMemes(state.editorCurrentSet.memes, state.editorCurrentSet.id === "default");
+        id("editorStatusText").textContent = "Изображение загружено!";
+        setTimeout(function(){ id("editorStatusText").textContent = ""; }, 2500);
+      } catch(e) {
+        alert("Ошибка загрузки: " + e.message);
+        if(btn) { btn.textContent = "📁 Загрузить файл"; btn.disabled = false; }
+      }
+    };
+    input.click();
+  };
+
   function editorAddMeme() {
     if(!state.editorCurrentSet) return;
     state.editorCurrentSet.memes = state.editorCurrentSet.memes || [];
-    state.editorCurrentSet.memes.push({ name: "Новый шаблон", url: "/klpp-assets/memes/dog.png" });
-    renderEditorMemes(state.editorCurrentSet.memes, state.editorCurrentSet.id === "default");
-    updateEditorChecklist();
+    var input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async function() {
+      var file = input.files[0];
+      if(!file) return;
+      if(file.size > 10 * 1024 * 1024) {
+        alert("Файл слишком большой (макс. 10MB).");
+        return;
+      }
+      id("editorStatusText").textContent = "Загрузка картинки...";
+      try {
+        var url = await uploadMemeImage(file);
+        var name = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") || "Новый шаблон";
+        state.editorCurrentSet.memes.push({ name: name, url: url });
+        renderEditorMemes(state.editorCurrentSet.memes, state.editorCurrentSet.id === "default");
+        updateEditorChecklist();
+        id("editorStatusText").textContent = "Мем-шаблон добавлен!";
+        setTimeout(function(){ id("editorStatusText").textContent = ""; }, 2500);
+      } catch(e) {
+        alert("Ошибка загрузки: " + e.message);
+        id("editorStatusText").textContent = "Ошибка";
+      }
+    };
+    input.click();
   }
 
   function collectSetFromEditor() {
