@@ -249,7 +249,9 @@
     mobilePlayerRoleButton: id("mobilePlayerRoleButton"),
     mobileHostRoleButton: id("mobileHostRoleButton"),
     desktopSettingsButton: id("desktopSettingsButton"),
+    desktopPacksButton: id("desktopPacksButton"),
     mobileJoinButton: id("mobileJoinButton"),
+    mobilePacksButton: id("mobilePacksButton"),
     hostRoomCode: id("hostRoomCode"),
     qrImage: id("qrImage"),
     hostPlayersCount: id("hostPlayersCount"),
@@ -390,6 +392,22 @@
     if(els.openEditorButton) {
       els.openEditorButton.addEventListener("click", function(){
         navigate("editor", state.roomId, {backTarget: {view:"settings", roomId: state.roomId}});
+      });
+    }
+    if(els.desktopPacksButton){
+      els.desktopPacksButton.addEventListener("click", function(){
+        navigate("editor");
+      });
+    }
+    if(els.mobilePacksButton){
+      els.mobilePacksButton.addEventListener("click", function(){
+        navigate("editor");
+      });
+    }
+    var searchInput = id("editorSearchInput");
+    if(searchInput) {
+      searchInput.addEventListener("input", function(){
+        renderEditorSetsList();
       });
     }
     
@@ -2387,6 +2405,11 @@
     state.editorActiveSetId = state.editorActiveSetId || "default";
     state.editorActiveTab = "classic";
     
+    var searchInput = id("editorSearchInput");
+    if(searchInput) {
+      searchInput.value = "";
+    }
+    
     Array.prototype.forEach.call(document.querySelectorAll(".editor-tab-btn"), function(b){ b.classList.remove("active"); });
     Array.prototype.forEach.call(document.querySelectorAll(".editor-pane"), function(p){ p.classList.remove("active"); });
     
@@ -2421,7 +2444,17 @@
   function renderEditorSetsList() {
     var container = id("editorSetsList");
     if(!container) return;
-    container.innerHTML = (state.editorSets || []).map(function(s){
+    
+    var query = String(id("editorSearchInput") ? id("editorSearchInput").value : "").toLowerCase().trim();
+    
+    var filtered = (state.editorSets || []).filter(function(s){
+      if(!query) return true;
+      var nameMatch = String(s.name || "").toLowerCase().indexOf(query) !== -1;
+      var descMatch = String(s.description || "").toLowerCase().indexOf(query) !== -1;
+      return nameMatch || descMatch;
+    });
+
+    container.innerHTML = filtered.map(function(s){
       var active = s.id === state.editorActiveSetId ? " active" : "";
       return '<button class="editor-set-item' + active + '" type="button" data-id="' + s.id + '">' +
         '<strong>' + escapeHtml(s.name) + '</strong>' +

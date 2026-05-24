@@ -920,7 +920,7 @@ img{display:block;max-width:100%}
           </button>
         </div>
 
-        <button class="desktop-button has-pad btn-packs" id="desktopPacksButton" type="button" hidden>
+        <button class="desktop-button has-pad btn-packs" id="desktopPacksButton" type="button">
           <span class="sr">Паки</span>
           <img class="pad" src="/klpp-assets/cloud-white-small.png" alt="">
           <img class="normal" src="/klpp-assets/icon-books.png" alt="">
@@ -947,10 +947,10 @@ img{display:block;max-width:100%}
             <img src="/klpp-assets/icon-cap.png" alt="">
             <span><strong>Настройки</strong><span>Раунды и вопросы</span></span>
           </button>
-          <a class="mobile-action" href="/editor" hidden>
+          <button class="mobile-action" id="mobilePacksButton" type="button">
             <img src="/klpp-assets/icon-books.png" alt="">
             <span><strong>Паки</strong><span>Вопросы и раунды</span></span>
-          </a>
+          </button>
         </div>
         <div class="mobile-role-split" id="mobileRoleSplit" hidden>
           <button class="role-split-button player" id="mobilePlayerRoleButton" type="button">
@@ -1205,6 +1205,9 @@ img{display:block;max-width:100%}
     <div class="editor-container">
       <aside class="editor-sidebar">
         <h2 style="font-size: 24px; font-weight: 900; margin: 0;">Наборы вопросов</h2>
+        <div class="editor-search-box" style="margin-top: 10px; margin-bottom: 10px;">
+          <input type="text" id="editorSearchInput" placeholder="Поиск наборов..." style="width: 100%; padding: 8px 12px; border: 3px solid #111; border-radius: 12px; font-weight: 700; font-size: 14px; background: #fff; color: #111;">
+        </div>
         <div class="editor-sets-list" id="editorSetsList">
           <!-- Populated dynamically -->
         </div>
