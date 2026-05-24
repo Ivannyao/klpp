@@ -11,6 +11,134 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 
 const klppRooms = new Map();
 
+// =========================================================================
+// WAVELENGTH MODULE — completely separate from KLPP.
+// Own rooms, own state machine, own endpoints (/api/wave/*).
+// =========================================================================
+const waveRooms = new Map();
+const WAVE_DEFAULT_SETTINGS = Object.freeze({
+  roundCount: 5,
+  mode: "host",      // "host" (TV + phones) | "direct" (phones only)
+  topicMode: "preset" // "preset" | "player_creates" | "split"
+});
+const WAVE_ROUND_PRESETS = [3, 5, 7, 10];
+const WAVE_SPECTRUMS = [
+  ["Холодно", "Горячо"],
+  ["Глупо", "Умно"],
+  ["Хаос", "Порядок"],
+  ["Дёшево", "Дорого"],
+  ["Тихо", "Громко"],
+  ["Старое", "Новое"],
+  ["Скучно", "Весело"],
+  ["Серьёзно", "Смешно"],
+  ["Реально", "Фантастика"],
+  ["Полезно", "Бесполезно"],
+  ["Опасно", "Безопасно"],
+  ["Маленькое", "Огромное"],
+  ["Простое", "Сложное"],
+  ["Тёмное", "Светлое"],
+  ["Известное", "Никому не известное"],
+  ["Грубое", "Нежное"],
+  ["Быстро", "Медленно"],
+  ["Кислое", "Сладкое"],
+  ["Городское", "Деревенское"],
+  ["Дешёвое", "Премиум"]
+];
+
+function waveRandomRoomId(){
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for(let i = 0; i < 4; i += 1) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return code;
+}
+function waveSanitizeRoomId(raw){
+  return String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+}
+function waveRandomHostKey(){
+  return Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8);
+}
+function waveSanitizeSettings(input){
+  const raw = Object.assign({}, WAVE_DEFAULT_SETTINGS, clone(input || {}));
+  return {
+    roundCount: Math.max(1, Math.min(15, Number(raw.roundCount) || WAVE_DEFAULT_SETTINGS.roundCount)),
+    mode: raw.mode === "direct" ? "direct" : "host",
+    topicMode: ["preset", "player_creates", "split"].indexOf(raw.topicMode) !== -1 ? raw.topicMode : "preset"
+  };
+}
+function waveCreateRoom(){
+  let id = waveRandomRoomId();
+  while(waveRooms.has(id)) id = waveRandomRoomId();
+  const room = {
+    id: id,
+    hostKey: waveRandomHostKey(),
+    state: "lobby",
+    createdAt: Date.now(),
+    players: [],
+    settings: waveSanitizeSettings({}),
+    sseClients: new Set()
+  };
+  waveRooms.set(id, room);
+  return room;
+}
+function waveGetRoom(rawId){
+  const id = waveSanitizeRoomId(rawId);
+  return id ? (waveRooms.get(id) || null) : null;
+}
+function waveUpsertPlayer(room, clientId, nickname){
+  const safeId = String(clientId || "").trim().slice(0, 80);
+  const safeName = String(nickname || "").trim().slice(0, 32) || "Игрок";
+  let p = room.players.find(function(x){ return x.clientId === safeId; });
+  if(p){ p.nickname = safeName; p.lastSeenAt = Date.now(); return p; }
+  p = {clientId: safeId, nickname: safeName, joinedAt: Date.now(), lastSeenAt: Date.now(), score: 0};
+  room.players.push(p);
+  room.players.sort(function(a, b){ return a.joinedAt - b.joinedAt; });
+  return p;
+}
+function waveSerializeRoom(room, viewerClientId){
+  const players = room.players.slice().sort(function(a, b){ return a.joinedAt - b.joinedAt; });
+  const ownerClientId = players[0] ? players[0].clientId : "";
+  const viewer = players.find(function(p){ return p.clientId === viewerClientId; }) || null;
+  const minPlayers = room.settings.mode === "direct" ? 2 : 3;
+  return {
+    id: room.id,
+    state: room.state,
+    createdAt: room.createdAt,
+    settings: clone(room.settings),
+    ownerClientId: ownerClientId,
+    minPlayersToStart: minPlayers,
+    players: players.map(function(p){
+      return {clientId: p.clientId, nickname: p.nickname, isOwner: p.clientId === ownerClientId, score: p.score || 0};
+    }),
+    viewer: viewer ? {
+      clientId: viewer.clientId,
+      nickname: viewer.nickname,
+      isOwner: viewer.clientId === ownerClientId,
+      canStart: viewer.clientId === ownerClientId && players.length >= minPlayers
+    } : {clientId: viewerClientId, nickname: "", isOwner: false, canStart: false}
+  };
+}
+function waveBroadcastRoom(room){
+  const payload = JSON.stringify({type: "snapshot", room: waveSerializeRoom(room, "")});
+  room.sseClients.forEach(function(client){
+    try {
+      const personalised = JSON.stringify({type: "snapshot", room: waveSerializeRoom(room, client.clientId || "")});
+      client.res.write("data: " + personalised + "\n\n");
+    } catch(e){ /* drop bad clients */ }
+  });
+}
+// GC for stale Wavelength rooms — same policy as KLPP.
+const WAVE_ROOM_EMPTY_TTL_MS = 30 * 60 * 1000;
+const WAVE_ROOM_MAX_TTL_MS = 12 * 60 * 60 * 1000;
+setInterval(function(){
+  const now = Date.now();
+  waveRooms.forEach(function(room, id){
+    const age = now - (room.createdAt || 0);
+    const hasPlayers = room.players && room.players.length > 0;
+    if(age >= WAVE_ROOM_MAX_TTL_MS) waveRooms.delete(id);
+    else if(!hasPlayers && age >= WAVE_ROOM_EMPTY_TTL_MS) waveRooms.delete(id);
+  });
+}, 5 * 60 * 1000).unref();
+
 const KLPP_STARTER_QUESTIONS = [
   "Самая странная вещь, которую можно услышать в школьной столовой.",
   "Худшее имя для супергероя, который спасает мир от скуки.",
@@ -2216,6 +2344,7 @@ setInterval(klppGlobalTick, KLPP_TICK_INTERVAL_MS).unref();
 
 function serveStatic(req, res, pathname){
   let relativePath = pathname === "/" || pathname === "/klpp" ? "/klpp.html" : pathname;
+  if(relativePath === "/wavelength" || relativePath === "/wave") relativePath = "/wavelength.html";
   if(relativePath === "/editor" || relativePath === "/pikuco_tree_editor_live.html" || relativePath === "/live_sync.js"){
     sendJson(res, 404, {error: "Removed"});
     return;
@@ -2360,6 +2489,86 @@ const server = http.createServer(async function(req, res){
     sendJson(res, 200, {ok: true, modifiers: klppListAvailableModifiers(), roundCountPresets: KLPP_ROUND_COUNT_PRESETS});
     return;
   }
+
+  // ===== WAVELENGTH endpoints =====
+  if(req.method === "GET" && pathname === "/api/wave/config"){
+    sendJson(res, 200, {ok: true, roundCountPresets: WAVE_ROUND_PRESETS, spectrumsAvailable: WAVE_SPECTRUMS.length});
+    return;
+  }
+  if(req.method === "POST" && pathname === "/api/wave/rooms"){
+    if(!tryRateLimitRoomCreation(clientIp(req))){
+      sendJson(res, 429, {ok: false, error: "Слишком много новых комнат с этого устройства. Подожди пару минут."});
+      return;
+    }
+    try {
+      const body = await parseBody(req);
+      const room = waveCreateRoom();
+      if(body && body.settings) room.settings = waveSanitizeSettings(body.settings);
+      sendJson(res, 200, {ok: true, room: waveSerializeRoom(room, ""), hostKey: room.hostKey});
+    } catch(error){ sendJson(res, 400, {ok: false, error: error.message}); }
+    return;
+  }
+  const waveRoomMatch = pathname.match(/^\/api\/wave\/room\/([^/]+)$/);
+  if(req.method === "GET" && waveRoomMatch){
+    const room = waveGetRoom(waveRoomMatch[1]);
+    if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+    const viewerClientId = String(requestUrl(req).searchParams.get("clientId") || "").trim();
+    sendJson(res, 200, {ok: true, room: waveSerializeRoom(room, viewerClientId)});
+    return;
+  }
+  const waveJoinMatch = pathname.match(/^\/api\/wave\/room\/([^/]+)\/join$/);
+  if(req.method === "POST" && waveJoinMatch){
+    try {
+      const room = waveGetRoom(waveJoinMatch[1]);
+      if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+      const body = await parseBody(req);
+      if(!String(body.clientId || "").trim()){ sendJson(res, 400, {ok: false, error: "Missing clientId"}); return; }
+      if(room.state !== "lobby"){ sendJson(res, 409, {ok: false, error: "Игра уже идёт"}); return; }
+      const player = waveUpsertPlayer(room, body.clientId, body.nickname);
+      waveBroadcastRoom(room);
+      sendJson(res, 200, {ok: true, player: clone(player), room: waveSerializeRoom(room, body.clientId)});
+    } catch(error){ sendJson(res, 400, {ok: false, error: error.message}); }
+    return;
+  }
+  const waveSettingsMatch = pathname.match(/^\/api\/wave\/room\/([^/]+)\/settings$/);
+  if(req.method === "POST" && waveSettingsMatch){
+    try {
+      const room = waveGetRoom(waveSettingsMatch[1]);
+      if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+      const body = await parseBody(req);
+      const hostKey = String((body && body.hostKey) || "").trim();
+      if(!hostKey || hostKey !== room.hostKey){ sendJson(res, 403, {ok: false, error: "Only host can change settings"}); return; }
+      if(room.state !== "lobby"){ sendJson(res, 409, {ok: false, error: "Settings can only be changed in lobby"}); return; }
+      room.settings = waveSanitizeSettings(body.settings);
+      waveBroadcastRoom(room);
+      sendJson(res, 200, {ok: true, room: waveSerializeRoom(room, "")});
+    } catch(error){ sendJson(res, 400, {ok: false, error: error.message}); }
+    return;
+  }
+  const waveEventsMatch = pathname.match(/^\/api\/wave\/room\/([^/]+)\/events$/);
+  if(req.method === "GET" && waveEventsMatch){
+    const room = waveGetRoom(waveEventsMatch[1]);
+    if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no"
+    });
+    res.write("retry: 2000\n\n");
+    const clientId = String(requestUrl(req).searchParams.get("clientId") || "").trim();
+    const client = {clientId: clientId, res: res};
+    room.sseClients.add(client);
+    res.write("data: " + JSON.stringify({type: "snapshot", room: waveSerializeRoom(room, clientId)}) + "\n\n");
+    const keepAlive = setInterval(function(){ try { res.write(": ping\n\n"); } catch(e){} }, 15000);
+    req.on("close", function(){
+      clearInterval(keepAlive);
+      room.sseClients.delete(client);
+    });
+    return;
+  }
+  // ===== end Wavelength =====
+
 
   if(req.method === "POST" && pathname === "/api/klpp/rooms"){
     if(!tryRateLimitRoomCreation(clientIp(req))){

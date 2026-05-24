@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wavelength · КЛПП</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lobster&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-deep:#0a0e1f;
+  --bg-mid:#141a2e;
+  --bg-light:#1f2740;
+  --neon-cyan:#22e1ff;
+  --neon-pink:#ff3d8a;
+  --neon-yellow:#ffd447;
+  --ink:#fff;
+  --ink-dim:rgba(255,255,255,.65);
+  --card:#1c2541;
+  --card-hi:#26305a;
+  --shadow:rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;font-family:Inter,system-ui,sans-serif;color:var(--ink)}
+body{background:var(--bg-deep);overflow-x:hidden;min-height:100vh}
+button,a,input,select{font:inherit;color:inherit}
+img{display:block;max-width:100%}
+[hidden]{display:none!important}
+
+/* Animated cosmic background */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse at 15% 25%, rgba(34,225,255,.15) 0%, transparent 45%),
+    radial-gradient(ellipse at 85% 75%, rgba(255,61,138,.15) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, rgba(255,212,71,.05) 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-mid) 100%);
+  animation:bg-drift 18s ease-in-out infinite alternate;
+}
+@keyframes bg-drift{
+  0%  {background-position:0% 0%, 100% 100%, 50% 50%, 0 0}
+  100%{background-position:8% 5%, 92% 95%, 50% 50%, 0 0}
+}
+/* subtle moving dots / stars */
+body::after{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 75% 80%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 40% 60%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 90% 20%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 10% 80%, #fff 50%, transparent 51%);
+  opacity:.4;animation:stars-twinkle 3s ease-in-out infinite;
+}
+@keyframes stars-twinkle{0%,100%{opacity:.4}50%{opacity:.6}}
+
+/* Nav */
+.site-nav{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;pointer-events:none}
+.nav-back{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:16px;background:rgba(255,255,255,.08);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);pointer-events:auto;cursor:pointer;color:#fff;text-decoration:none;font-weight:900;transition:background .15s ease,transform .15s ease}
+.nav-back:hover{background:rgba(255,255,255,.15);transform:translateX(-2px)}
+.nav-title{font-family:"Lobster",cursive;font-size:22px;color:var(--neon-cyan);letter-spacing:.04em;text-shadow:0 0 12px rgba(34,225,255,.6);pointer-events:auto}
+
+.screen{position:relative;min-height:100vh;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px 28px;text-align:center}
+
+/* ===== HOME ===== */
+.wave-logo{display:flex;flex-direction:column;align-items:center;margin-bottom:36px}
+.wave-logo__title{font-family:"Lobster",cursive;font-size:clamp(56px,11vw,128px);line-height:1;margin:0;background:linear-gradient(180deg,var(--neon-cyan) 0%,var(--neon-pink) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 30px rgba(34,225,255,.4));animation:logo-pulse 2.6s ease-in-out infinite}
+.wave-logo__subtitle{margin-top:14px;font-size:14px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-dim)}
+@keyframes logo-pulse{0%,100%{filter:drop-shadow(0 0 30px rgba(34,225,255,.4))}50%{filter:drop-shadow(0 0 50px rgba(255,61,138,.5))}}
+
+/* Visual: animated horizontal spectrum bar under logo */
+.wave-spectrum-preview{position:relative;width:min(420px,80vw);height:14px;border-radius:999px;background:linear-gradient(90deg,#22e1ff 0%,#7d5dff 50%,#ff3d8a 100%);box-shadow:0 0 30px rgba(125,93,255,.5);margin-bottom:42px;overflow:hidden}
+.wave-spectrum-preview::after{content:"";position:absolute;top:-3px;width:6px;height:20px;background:#fff;border-radius:3px;box-shadow:0 0 12px #fff;animation:spectrum-sweep 4s ease-in-out infinite}
+@keyframes spectrum-sweep{0%,100%{left:5%}50%{left:calc(100% - 11px)}}
+
+.btn-cta{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-width:240px;padding:18px 32px;border:none;border-radius:18px;background:linear-gradient(135deg,var(--neon-cyan) 0%,var(--neon-pink) 100%);color:#0a0e1f;font-weight:900;font-size:22px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;box-shadow:0 10px 30px rgba(34,225,255,.35),0 0 0 4px rgba(255,255,255,.05);transition:transform .2s ease,box-shadow .2s ease;text-decoration:none}
+.btn-cta:hover,.btn-cta:focus-visible{transform:translateY(-3px) scale(1.03);box-shadow:0 18px 50px rgba(255,61,138,.45),0 0 0 4px rgba(255,255,255,.08)}
+.btn-cta:active{transform:translateY(0) scale(.98)}
+
+.btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:180px;padding:14px 24px;border:2px solid rgba(255,255,255,.2);border-radius:14px;background:rgba(255,255,255,.05);color:#fff;font-weight:800;font-size:16px;cursor:pointer;text-decoration:none;transition:background .15s ease,border-color .15s ease}
+.btn-ghost:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.4)}
+
+/* ===== SETUP ===== */
+.setup-card{background:var(--card);border-radius:24px;padding:36px 32px;box-shadow:0 20px 60px var(--shadow),inset 0 1px 0 rgba(255,255,255,.06);width:min(560px,94vw);text-align:left}
+.setup-card h2{margin:0 0 6px;font-size:32px;font-family:"Lobster",cursive;color:#fff}
+.setup-card .setup-step{margin-top:24px}
+.setup-step__label{font-size:13px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--neon-cyan);margin-bottom:12px}
+.option-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.option-card{padding:18px 16px;border:2px solid rgba(255,255,255,.1);border-radius:16px;background:var(--card-hi);cursor:pointer;text-align:left;color:#fff;transition:all .2s ease;font:inherit}
+.option-card:hover{border-color:rgba(34,225,255,.4);background:rgba(34,225,255,.08)}
+.option-card.is-active{border-color:var(--neon-cyan);background:rgba(34,225,255,.12);box-shadow:0 0 0 3px rgba(34,225,255,.2)}
+.option-card strong{display:block;font-size:18px;margin-bottom:4px}
+.option-card span{font-size:12px;color:var(--ink-dim);line-height:1.4}
+.round-pill-row{display:flex;flex-wrap:wrap;gap:10px}
+.round-pill{padding:12px 22px;border:2px solid rgba(255,255,255,.1);border-radius:999px;background:transparent;color:#fff;font-weight:900;font-size:16px;cursor:pointer;transition:all .15s ease;min-width:60px}
+.round-pill:hover{border-color:rgba(34,225,255,.4)}
+.round-pill.is-active{border-color:var(--neon-cyan);background:rgba(34,225,255,.18);color:var(--neon-cyan)}
+
+.setup-actions{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}
+
+/* ===== JOIN / PLAYER ===== */
+.input-stack{display:grid;gap:14px;margin-top:8px}
+.input-stack label{display:grid;gap:6px;font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--neon-cyan)}
+.input-stack input{width:100%;padding:16px 18px;border:2px solid rgba(255,255,255,.15);border-radius:14px;background:rgba(0,0,0,.3);color:#fff;font-size:20px;font-weight:800;outline:none;transition:border-color .15s ease}
+.input-stack input:focus{border-color:var(--neon-cyan)}
+.input-stack input::placeholder{color:rgba(255,255,255,.3)}
+
+.error-text{margin-top:10px;color:#ff6b6b;font-size:14px;font-weight:700;min-height:20px}
+
+/* ===== HOST LOBBY ===== */
+.host-lobby-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;width:min(960px,94vw)}
+@media (max-width:760px){.host-lobby-grid{grid-template-columns:1fr}}
+.lobby-panel{background:var(--card);border-radius:20px;padding:24px;box-shadow:0 12px 40px var(--shadow)}
+.lobby-panel h3{margin:0 0 12px;font-family:"Lobster",cursive;font-size:24px;color:var(--neon-cyan)}
+.room-code{font-family:"Lobster",cursive;font-size:64px;text-align:center;background:linear-gradient(180deg,var(--neon-cyan),var(--neon-pink));-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:.08em;margin:14px 0}
+.qr-wrap{display:flex;justify-content:center;padding:14px;background:#fff;border-radius:14px;margin-top:10px}
+.qr-wrap img{width:200px;height:200px}
+.player-chip{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:var(--card-hi);margin-top:8px;font-weight:700}
+.player-chip__avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-pink));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#0a0e1f}
+.player-chip__name{flex:1}
+.player-chip__owner{font-size:10px;font-weight:900;letter-spacing:.16em;padding:3px 8px;border-radius:999px;background:var(--neon-yellow);color:#0a0e1f}
+.lobby-status{margin-top:14px;padding:14px;border-radius:12px;background:rgba(34,225,255,.08);border:1px solid rgba(34,225,255,.2);font-size:14px;color:var(--ink-dim)}
+
+/* ===== PLAY placeholder ===== */
+.play-placeholder{text-align:center;padding:40px}
+.play-placeholder h2{font-family:"Lobster",cursive;font-size:48px;color:var(--neon-cyan);margin:0 0 10px}
+.play-placeholder p{color:var(--ink-dim);font-size:18px;max-width:520px;margin:0 auto}
+
+/* ===== Toast ===== */
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(80px);background:var(--card-hi);color:#fff;padding:14px 22px;border-radius:14px;box-shadow:0 12px 40px var(--shadow);z-index:200;font-weight:700;font-size:14px;opacity:0;transition:transform .25s ease,opacity .25s ease;pointer-events:none;max-width:90vw}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* ===== Mobile polish ===== */
+@media (max-width:560px){
+  .setup-card{padding:24px 18px}
+  .setup-card h2{font-size:24px}
+  .option-grid{grid-template-columns:1fr}
+  .btn-cta{min-width:auto;width:100%;font-size:18px;padding:16px 20px}
+  .btn-ghost{width:100%;min-width:auto}
+  .room-code{font-size:48px}
+}
+</style>
+</head>
+<body>
+
+<nav class="site-nav" aria-label="Wavelength навигация">
+  <a class="nav-back" href="/klpp" aria-label="Назад в КЛПП">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5 L7 12 L15 19" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+  </a>
+  <div class="nav-title">Wavelength</div>
+  <div style="width:48px"></div>
+</nav>
+
+<main>
+  <!-- HOME -->
+  <section class="screen" id="screenHome">
+    <div class="wave-logo">
+      <h1 class="wave-logo__title">Wavelength</h1>
+      <div class="wave-logo__subtitle">Угадай волну</div>
+    </div>
+    <div class="wave-spectrum-preview" aria-hidden="true"></div>
+    <button class="btn-cta" id="homePlayButton" type="button">▶ Играть</button>
+    <p style="margin-top:24px;color:var(--ink-dim);max-width:480px;font-size:15px;line-height:1.5">Один игрок видит скрытую цель на спектре. Остальные пытаются угадать, насколько подсказка ему близка. Чем ближе указатель к цели — тем больше очков.</p>
+  </section>
+
+  <!-- SETUP -->
+  <section class="screen" id="screenSetup" hidden>
+    <div class="setup-card">
+      <h2>Настройка партии</h2>
+
+      <div class="setup-step">
+        <div class="setup-step__label">Режим</div>
+        <div class="option-grid">
+          <button class="option-card" data-setup-mode="host" type="button">
+            <strong>📺 Host-экран</strong>
+            <span>Один экран на ТВ/ПК показывает спектр, игроки на телефонах вводят подсказки и угадывают</span>
+          </button>
+          <button class="option-card" data-setup-mode="direct" type="button">
+            <strong>📱 Только телефоны</strong>
+            <span>Все играют только с телефонов, без общего экрана. Минимум 2 игрока.</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="setup-step">
+        <div class="setup-step__label">Количество раундов</div>
+        <div class="round-pill-row" id="setupRoundRow"></div>
+      </div>
+
+      <div class="setup-step">
+        <div class="setup-step__label">Тип тем</div>
+        <div class="option-grid">
+          <button class="option-card" data-setup-topic="preset" type="button">
+            <strong>📚 Готовые</strong>
+            <span>Спектры из встроенного пака (Холодно↔Горячо и т.д.)</span>
+          </button>
+          <button class="option-card" data-setup-topic="player_creates" type="button">
+            <strong>✍️ Свои</strong>
+            <span>Загадывающий сам придумывает спектр</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="setup-actions">
+        <button class="btn-cta" id="setupCreateButton" type="button">Создать комнату →</button>
+        <button class="btn-ghost" id="setupJoinButton" type="button">У меня есть код</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOST LOBBY -->
+  <section class="screen" id="screenHostLobby" hidden>
+    <div class="host-lobby-grid">
+      <div class="lobby-panel">
+        <h3>Код комнаты</h3>
+        <div class="room-code" id="lobbyRoomCode">----</div>
+        <div class="qr-wrap"><img id="lobbyQrImage" alt="QR для входа"></div>
+        <div class="lobby-status" id="lobbyStatus">Ждём игроков…</div>
+        <div style="margin-top:14px">
+          <button class="btn-ghost" id="lobbyCopyButton" type="button">📋 Копировать ссылку</button>
+        </div>
+      </div>
+      <div class="lobby-panel">
+        <h3 id="lobbyPlayersTitle">Игроки</h3>
+        <div id="lobbyPlayersList"></div>
+        <button class="btn-cta" id="lobbyStartButton" type="button" style="margin-top:18px;width:100%" disabled>Начать игру</button>
+        <div class="lobby-status" id="lobbyStartHint" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- JOIN -->
+  <section class="screen" id="screenJoin" hidden>
+    <div class="setup-card" style="max-width:420px">
+      <h2>Войти в комнату</h2>
+      <div class="input-stack">
+        <label>Код комнаты
+          <input id="joinCodeInput" maxlength="8" autocomplete="one-time-code" placeholder="ABCD" autocapitalize="characters">
+        </label>
+        <label>Твой ник
+          <input id="joinNickInput" maxlength="32" autocomplete="nickname" placeholder="Например, Лысый Шутник">
+        </label>
+      </div>
+      <div class="error-text" id="joinError"></div>
+      <div class="setup-actions">
+        <button class="btn-cta" id="joinSubmitButton" type="button">Войти</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAYER WAITING -->
+  <section class="screen" id="screenPlayerLobby" hidden>
+    <div class="setup-card" style="max-width:420px;text-align:center">
+      <h2 id="playerLobbyTitle">Ждём…</h2>
+      <p id="playerLobbySubtitle" style="color:var(--ink-dim);font-size:16px;margin:6px 0 18px"></p>
+      <div id="playerLobbyChips" style="display:grid;gap:8px"></div>
+    </div>
+  </section>
+
+  <!-- PLAY (placeholder until next iteration) -->
+  <section class="screen" id="screenPlay" hidden>
+    <div class="play-placeholder">
+      <h2>Игра скоро начнётся</h2>
+      <p>Геймплейный экран будет реализован в следующей итерации. Сейчас работают: меню, настройки, лобби, синхронизация игроков через SSE.</p>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="/wavelength-client.js?v=wave-1"></script>
+</body>
+</html>
