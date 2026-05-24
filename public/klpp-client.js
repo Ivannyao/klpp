@@ -2885,4 +2885,9 @@
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char];
     });
   }
+
+  function clone(obj) {
+    if (obj === undefined) return undefined;
+    return JSON.parse(JSON.stringify(obj));
+  }
 })();
