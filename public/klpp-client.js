@@ -287,6 +287,8 @@
     settingsQuestionSetId: id("settingsQuestionSetId"),
     openEditorButton: id("openEditorButton"),
     screenEditor: id("screenEditor"),
+    editorDuplicateBtn: id("editorDuplicateBtn"),
+    editorTestBtn: id("editorTestBtn"),
     settingsModifierList: id("settingsModifierList"),
     hostModifiers: id("hostModifiers"),
     hostRoundTransition: id("hostRoundTransition"),
@@ -417,6 +419,12 @@
     var editorSaveBtn = id("editorSaveBtn");
     if(editorSaveBtn) editorSaveBtn.addEventListener("click", saveEditorSet);
     
+    var editorDuplicateBtn = id("editorDuplicateBtn");
+    if(editorDuplicateBtn) editorDuplicateBtn.addEventListener("click", duplicateEditorSet);
+    
+    var editorTestBtn = id("editorTestBtn");
+    if(editorTestBtn) editorTestBtn.addEventListener("click", testEditorSet);
+    
     var editorDeleteBtn = id("editorDeleteBtn");
     if(editorDeleteBtn) editorDeleteBtn.addEventListener("click", deleteEditorSet);
     
@@ -434,6 +442,45 @@
     
     var editorImportFile = id("editorImportFile");
     if(editorImportFile) editorImportFile.addEventListener("change", importEditorSet);
+
+    var editorSetName = id("editorSetName");
+    if(editorSetName) {
+      editorSetName.addEventListener("input", function() {
+        if (state.editorActiveSetId === "") {
+          renderEditorSetsList();
+        }
+        updateEditorChecklist();
+      });
+    }
+    var editorSetDesc = id("editorSetDesc");
+    if(editorSetDesc) {
+      editorSetDesc.addEventListener("input", updateEditorChecklist);
+    }
+    var editorTextClassic = id("editorTextClassic");
+    if(editorTextClassic) {
+      editorTextClassic.addEventListener("input", function() {
+        if (state.editorActiveSetId === "") {
+          renderEditorSetsList();
+        }
+        updateEditorChecklist();
+      });
+    }
+    var editorTextReverse = id("editorTextReverse");
+    if(editorTextReverse) {
+      editorTextReverse.addEventListener("input", updateEditorChecklist);
+    }
+    var editorTextFinal = id("editorTextFinal");
+    if(editorTextFinal) {
+      editorTextFinal.addEventListener("input", updateEditorChecklist);
+    }
+
+    window.addEventListener("beforeunload", function(e){
+      if(state.view === "editor" && isEditorDirty()) {
+        e.preventDefault();
+        e.returnValue = "У вас есть несохраненные изменения в наборе вопросов. Действительно выйти?";
+        return e.returnValue;
+      }
+    });
 
     initEditorTabs();
   }
@@ -511,6 +558,9 @@
   }
 
   function goBack(){
+    if(state.view === "editor" && isEditorDirty()) {
+      if(!confirm("У вас есть несохраненные изменения. Вы уверены, что хотите выйти?")) return;
+    }
     navigate(state.backTarget.view || "home", state.backTarget.roomId || "");
   }
 
@@ -2454,54 +2504,147 @@
       return nameMatch || descMatch;
     });
 
-    container.innerHTML = filtered.map(function(s){
+    var items = filtered.map(function(s){
       var active = s.id === state.editorActiveSetId ? " active" : "";
       return '<button class="editor-set-item' + active + '" type="button" data-id="' + s.id + '">' +
         '<strong>' + escapeHtml(s.name) + '</strong>' +
         '<div style="font-size:11px; opacity:0.75; font-weight:700; margin-top:3px;">Вопросов: ' + (s.questions || []).length + ', мемов: ' + (s.memes || []).length + '</div>' +
       '</button>';
-    }).join("");
+    });
+
+    if (state.editorActiveSetId === "") {
+      var draftName = state.editorCurrentSet ? state.editorCurrentSet.name : "Новый набор";
+      var draftClassic = id("editorTextClassic") ? id("editorTextClassic").value.split("\n").filter(Boolean).length : 2;
+      var draftMemes = state.editorCurrentSet ? (state.editorCurrentSet.memes || []).length : 1;
+      var draftHtml = '<button class="editor-set-item active" type="button" data-id="">' +
+        '<strong>✨ ' + escapeHtml(draftName) + '</strong>' +
+        '<div style="font-size:11px; opacity:0.9; color: #ffaa00; font-weight:700; margin-top:3px;">Черновик (Вопросов: ' + draftClassic + ', мемов: ' + draftMemes + ')</div>' +
+      '</button>';
+      items.unshift(draftHtml);
+    }
+
+    container.innerHTML = items.join("");
     
     Array.prototype.forEach.call(container.querySelectorAll(".editor-set-item"), function(btn){
       btn.addEventListener("click", function(){
         var id = btn.getAttribute("data-id");
+        if(id === state.editorActiveSetId) return;
+        
+        if(isEditorDirty()) {
+          if(!confirm("У вас есть несохраненные изменения в текущем наборе. Переключиться без сохранения?")) return;
+        }
+        
         state.editorActiveSetId = id;
         renderEditorSetsList();
         var set = state.editorSets.find(function(s){ return s.id === id; });
         if(set) loadSetIntoEditor(set);
+        else if(id === "" && state.editorCurrentSet) loadSetIntoEditor(state.editorCurrentSet);
       });
     });
   }
 
+  function compileCurrentSet() {
+    if(!state.editorCurrentSet) return null;
+    var name = String(id("editorSetName") ? id("editorSetName").value : "").trim();
+    var desc = String(id("editorSetDesc") ? id("editorSetDesc").value : "").trim();
+    var questions = id("editorTextClassic") ? id("editorTextClassic").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    var reverse = id("editorTextReverse") ? id("editorTextReverse").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    var finalQs = id("editorTextFinal") ? id("editorTextFinal").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    
+    var compiled = clone(state.editorCurrentSet);
+    compiled.name = name;
+    compiled.description = desc;
+    compiled.questions = questions;
+    compiled.reverseAnswers = reverse;
+    compiled.finalQuestions = finalQs;
+    return compiled;
+  }
+
+  function isEditorDirty() {
+    if(!state.editorOriginalSet) return false;
+    var current = compileCurrentSet();
+    if(!current) return false;
+    return JSON.stringify(current) !== JSON.stringify(state.editorOriginalSet);
+  }
+
+  function updateEditorChecklist() {
+    var current = compileCurrentSet();
+    if(!current) return;
+    
+    var classicCount = (current.questions || []).length;
+    var reverseCount = (current.reverseAnswers || []).length;
+    var finalCount = (current.finalQuestions || []).length;
+    var memesCount = (current.memes || []).length;
+    
+    updateCheckItem("check-classic", classicCount, 6);
+    updateCheckItem("check-reverse", reverseCount, 6);
+    updateCheckItem("check-final", finalCount, 2);
+    updateCheckItem("check-memes", memesCount, 2);
+  }
+
+  function updateCheckItem(elementId, current, required) {
+    var el = id(elementId);
+    if(!el) return;
+    var iconEl = el.querySelector(".status-icon");
+    var countEl = el.querySelector(".status-count");
+    if(current >= required) {
+      if(iconEl) iconEl.textContent = "✅";
+      if(countEl) countEl.innerHTML = '<span style="color: #2ebd59;">' + current + ' / ' + required + '</span>';
+      el.style.opacity = "1";
+    } else if(current > 0) {
+      if(iconEl) iconEl.textContent = "⚠️";
+      if(countEl) countEl.innerHTML = '<span style="color: #ffaa00;">' + current + ' / ' + required + '</span>';
+      el.style.opacity = "1";
+    } else {
+      if(iconEl) iconEl.textContent = "❌";
+      if(countEl) countEl.innerHTML = '<span style="color: #ff4d4d;">' + current + ' / ' + required + '</span>';
+      el.style.opacity = "0.7";
+    }
+  }
+
   function loadSetIntoEditor(set) {
     state.editorCurrentSet = clone(set);
-    id("editorTitle").textContent = set.id === "default" ? "Стандартный набор (Только чтение)" : "Редактирование набора";
+    state.editorOriginalSet = clone(set);
+    var isDefault = set.id === "default";
+    id("editorTitle").textContent = isDefault ? "Стандартный набор (Только чтение)" : "Редактирование набора";
     id("editorSetName").value = set.name;
     id("editorSetDesc").value = set.description;
     
-    id("editorSetName").disabled = set.id === "default";
-    id("editorSetDesc").disabled = set.id === "default";
-    id("editorDeleteBtn").style.display = set.id === "default" ? "none" : "block";
+    id("editorSetName").disabled = isDefault;
+    id("editorSetDesc").disabled = isDefault;
+    id("editorTextClassic").disabled = isDefault;
+    id("editorTextReverse").disabled = isDefault;
+    id("editorTextFinal").disabled = isDefault;
+    
+    id("editorSaveBtn").style.display = isDefault ? "none" : "block";
+    if(els.editorDuplicateBtn) {
+      els.editorDuplicateBtn.style.display = isDefault ? "block" : "none";
+    }
+    id("editorDeleteBtn").style.display = isDefault ? "none" : "block";
+    id("editorAddMemeBtn").style.display = isDefault ? "none" : "block";
 
     id("editorTextClassic").value = (set.questions || []).join("\n");
     id("editorTextReverse").value = (set.reverseAnswers || []).join("\n");
     id("editorTextFinal").value = (set.finalQuestions || []).join("\n");
     
-    renderEditorMemes(set.memes || []);
+    renderEditorMemes(set.memes || [], isDefault);
+    updateEditorChecklist();
   }
 
-  function renderEditorMemes(memes) {
+  function renderEditorMemes(memes, disabled) {
     var grid = id("editorMemesGrid");
     if(!grid) return;
     grid.innerHTML = (memes || []).map(function(m, idx){
+      var deleteBtn = disabled ? "" : '<button class="delete-meme-btn" type="button" onclick="window.klppDeleteMeme(' + idx + ')">×</button>';
+      var disabledAttr = disabled ? " disabled" : "";
       return '<div class="editor-meme-card" data-index="' + idx + '">' +
-        '<button class="delete-meme-btn" type="button" onclick="window.klppDeleteMeme(' + idx + ')">×</button>' +
+        deleteBtn +
         '<img class="meme-preview" src="' + escapeHtml(m.url) + '" onerror="this.src=\'data:image/svg+xml;utf8,<svg viewBox=\\\'0 0 100 100\\\' xmlns=\\\'http://www.w3.org/2000/svg\\\'> <rect width=\\\'100\\\' height=\\\'100\\\' fill=\\\'%23eee\\\'/> <text x=\\\'50%\\\' y=\\\'50%\\\' dominant-baseline=\\\'middle\\\' text-anchor=\\\'middle\\\' font-size=\\\'10\\\' fill=\\\'%23999\\\'>Ошибка загрузки</text></svg>\'">' +
         '<label style="display:grid; gap:4px; font-size:11px; text-transform:uppercase; font-weight:900; text-align:left;">Название' +
-          '<input type="text" class="meme-name-input" value="' + escapeHtml(m.name) + '" oninput="window.klppUpdateMeme(' + idx + ', \'name\', this.value)">' +
+          '<input type="text" class="meme-name-input" value="' + escapeHtml(m.name) + '" oninput="window.klppUpdateMeme(' + idx + ', \'name\', this.value)"' + disabledAttr + '>' +
         '</label>' +
         '<label style="display:grid; gap:4px; font-size:11px; text-transform:uppercase; font-weight:900; text-align:left;">Ссылка на картинку' +
-          '<input type="text" class="meme-url-input" value="' + escapeHtml(m.url) + '" oninput="window.klppUpdateMeme(' + idx + ', \'url\', this.value)">' +
+          '<input type="text" class="meme-url-input" value="' + escapeHtml(m.url) + '" oninput="window.klppUpdateMeme(' + idx + ', \'url\', this.value)"' + disabledAttr + '>' +
         '</label>' +
       '</div>';
     }).join("");
@@ -2510,7 +2653,8 @@
   window.klppDeleteMeme = function(idx) {
     if(!state.editorCurrentSet) return;
     state.editorCurrentSet.memes.splice(idx, 1);
-    renderEditorMemes(state.editorCurrentSet.memes);
+    renderEditorMemes(state.editorCurrentSet.memes, state.editorCurrentSet.id === "default");
+    updateEditorChecklist();
   };
   
   window.klppUpdateMeme = function(idx, field, value) {
@@ -2529,34 +2673,35 @@
     if(!state.editorCurrentSet) return;
     state.editorCurrentSet.memes = state.editorCurrentSet.memes || [];
     state.editorCurrentSet.memes.push({ name: "Новый шаблон", url: "/klpp-assets/memes/dog.png" });
-    renderEditorMemes(state.editorCurrentSet.memes);
+    renderEditorMemes(state.editorCurrentSet.memes, state.editorCurrentSet.id === "default");
+    updateEditorChecklist();
   }
 
   function collectSetFromEditor() {
-    if(!state.editorCurrentSet) return null;
-    var name = String(id("editorSetName").value || "").trim();
-    var desc = String(id("editorSetDesc").value || "").trim();
-    if(!name) {
+    var set = compileCurrentSet();
+    if(!set) return null;
+    if(!set.name) {
       alert("Название набора обязательно!");
       return null;
     }
-    
-    var questions = id("editorTextClassic").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
-    var reverse = id("editorTextReverse").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
-    var finalQs = id("editorTextFinal").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
-    
-    state.editorCurrentSet.name = name;
-    state.editorCurrentSet.description = desc;
-    state.editorCurrentSet.questions = questions;
-    state.editorCurrentSet.reverseAnswers = reverse;
-    state.editorCurrentSet.finalQuestions = finalQs;
-    
-    return state.editorCurrentSet;
+    return set;
   }
 
   async function saveEditorSet() {
     var set = collectSetFromEditor();
     if(!set) return;
+
+    var classicCount = (set.questions || []).length;
+    var reverseCount = (set.reverseAnswers || []).length;
+    var finalCount = (set.finalQuestions || []).length;
+    var memesCount = (set.memes || []).length;
+    
+    if(classicCount < 6 || reverseCount < 6 || finalCount < 2 || memesCount < 2) {
+      if(!confirm("Внимание: Набор содержит меньше рекомендуемого минимума вопросов/мемов (требуется: 6 обычных, 6 реверсивных, 2 финальных, 2 мема). Для пустых/недостающих раундов игра автоматически использует стандартные вопросы. Сохранить всё равно?")) {
+        return;
+      }
+    }
+
     try {
       id("editorStatusText").textContent = "Сохранение...";
       var res = await api("/api/klpp/question-sets", {
@@ -2575,7 +2720,15 @@
   }
 
   async function deleteEditorSet() {
-    if(!state.editorActiveSetId || state.editorActiveSetId === "default") return;
+    if(!state.editorActiveSetId || state.editorActiveSetId === "default") {
+      if(state.editorActiveSetId === "") {
+        if(confirm("Отменить создание нового набора? Все изменения будут потеряны.")) {
+          state.editorActiveSetId = "default";
+          await loadEditorData();
+        }
+      }
+      return;
+    }
     if(!confirm("Вы уверены, что хотите удалить этот набор? Это действие нельзя отменить.")) return;
     try {
       id("editorStatusText").textContent = "Удаление...";
@@ -2593,18 +2746,83 @@
   }
 
   function createNewSet() {
+    if(isEditorDirty()) {
+      if(!confirm("У вас есть несохраненные изменения. Создать новый набор без сохранения текущего?")) return;
+    }
     var newSet = {
       id: "",
       name: "Новый набор вопросов",
       description: "Созданный пользователем набор",
-      questions: [],
-      reverseAnswers: [],
-      finalQuestions: [],
-      memes: []
+      questions: [
+        "Что скрывают ученые на обратной стороне Луны?",
+        "Самая нелепая причина опоздать на свидание."
+      ],
+      reverseAnswers: [
+        "Кусок сыра и старая батарейка.",
+        "Оно само лопнуло, честно!"
+      ],
+      finalQuestions: [
+        "Худшее оправдание для опоздания на собственную свадьбу.",
+        "Самый глупый вопрос на собеседовании."
+      ],
+      memes: [
+        { name: "Джек-рассел терьер", url: "/klpp-assets/memes/dog.png" }
+      ]
     };
     state.editorActiveSetId = "";
     loadSetIntoEditor(newSet);
     id("editorSetName").focus();
+  }
+
+  function duplicateEditorSet() {
+    if(!state.editorCurrentSet) return;
+    if(isEditorDirty()) {
+      if(!confirm("У вас есть несохраненные изменения. Создать копию без сохранения текущего?")) return;
+    }
+    var copy = clone(state.editorCurrentSet);
+    copy.id = "";
+    copy.name = copy.name + " (Копия)";
+    state.editorActiveSetId = "";
+    loadSetIntoEditor(copy);
+    id("editorSetName").focus();
+  }
+
+  async function testEditorSet() {
+    if(isEditorDirty()) {
+      if(!confirm("Для тестирования набора его необходимо сохранить. Сохранить и запустить тест?")) return;
+      await saveEditorSet();
+    }
+    
+    var setId = state.editorActiveSetId;
+    if(!setId) {
+      alert("Сначала сохраните набор!");
+      return;
+    }
+    
+    try {
+      id("editorStatusText").textContent = "Запуск теста...";
+      var res = await api("/api/klpp/dev/start", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          botCount: 4,
+          settings: {
+            questionSetId: setId,
+            roundCount: 2,
+            modifierMode: "off"
+          }
+        })
+      });
+      
+      state.roomId = res.room.id;
+      state.hostKey = res.hostKey;
+      localStorage.setItem("klppHostKey_" + res.room.id, res.hostKey);
+      state.devMode = true;
+      navigate("host", res.room.id);
+    } catch(e) {
+      alert("Ошибка запуска теста: " + e.message);
+      id("editorStatusText").textContent = "Ошибка";
+    }
   }
 
   function exportEditorSet() {
@@ -2628,13 +2846,24 @@
           alert("Некорректный JSON: отсутствует название набора (name).");
           return;
         }
-        if(confirm("Импортировать как новый набор? (Иначе будет перезаписан текущий активный набор)")) {
+        
+        var isOverwritingDefault = (state.editorActiveSetId === "default");
+        if(isOverwritingDefault) {
+          alert("Стандартный набор нельзя перезаписать. Импортировано как новый набор.");
           set.id = "";
+          state.editorActiveSetId = "";
         } else {
-          set.id = state.editorActiveSetId;
+          if(confirm("Импортировать как новый набор? (Иначе будет перезаписан текущий активный набор)")) {
+            set.id = "";
+            state.editorActiveSetId = "";
+          } else {
+            set.id = state.editorActiveSetId;
+          }
         }
+        
         loadSetIntoEditor(set);
-        id("editorStatusText").textContent = "JSON импортирован!";
+        id("editorStatusText").textContent = "JSON импортирован! Нажмите кнопку Сохранить.";
+        updateEditorChecklist();
       } catch(err) {
         alert("Ошибка разбора JSON: " + err.message);
       }

@@ -1220,6 +1220,8 @@ img{display:block;max-width:100%}
           <h1 class="editor-title" id="editorTitle" style="font-size:32px; font-weight:900; margin:0;">Набор вопросов</h1>
           <div style="display:flex; gap:10px;">
             <button class="cta small" type="button" id="editorSaveBtn" style="font-size:16px; min-height:46px;">💾 Сохранить</button>
+            <button class="cta small" type="button" id="editorDuplicateBtn" style="font-size:16px; min-height:46px; background:#4d96ff; color:#fff; display:none;">👥 Создать копию</button>
+            <button class="cta small" type="button" id="editorTestBtn" style="font-size:16px; min-height:46px; background:#ffd93d; color:#111; font-weight:900; border:3px solid #111;">🧪 Тест набора</button>
             <button class="cta secondary small" type="button" id="editorDeleteBtn" style="font-size:16px; min-height:46px; background:#ff6b6b; color:#fff;">🗑️ Удалить</button>
           </div>
         </div>
@@ -1232,6 +1234,24 @@ img{display:block;max-width:100%}
             <label>Описание
               <input type="text" id="editorSetDesc" placeholder="Краткое описание набора" style="font-size:14px; padding:10px 14px; font-weight:700;">
             </label>
+          </div>
+
+          <div class="editor-checklist" style="background: #fbfbfb; border: 3px solid #111; border-radius: 16px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; box-shadow: 4px 4px 0 rgba(0,0,0,0.1);">
+            <div style="font-size: 12px; text-transform: uppercase; opacity: 0.6; letter-spacing: 0.8px; font-weight: 900; color: #111;">📋 ЧЕК-ЛИСТ ГОТОВНОСТИ НАБОРА</div>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+              <div id="check-classic" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: #111;">
+                <span class="status-icon">⚪</span> Обычные: <span class="status-count">0 / 6</span>
+              </div>
+              <div id="check-reverse" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: #111;">
+                <span class="status-icon">⚪</span> Реверс: <span class="status-count">0 / 6</span>
+              </div>
+              <div id="check-final" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: #111;">
+                <span class="status-icon">⚪</span> Финал: <span class="status-count">0 / 2</span>
+              </div>
+              <div id="check-memes" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: #111;">
+                <span class="status-icon">⚪</span> Мемы: <span class="status-count">0 / 2</span>
+              </div>
+            </div>
           </div>
 
           <div class="editor-tabs">
