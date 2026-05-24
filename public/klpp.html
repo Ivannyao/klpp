@@ -433,8 +433,197 @@ img{display:block;max-width:100%}
 .video-overlay{position:absolute;inset:0;background:linear-gradient(to bottom, rgba(135,206,235,0.2), rgba(0,0,0,0.2))}
 .segmented-timer{position:absolute;top:60px;left:60px;z-index:15;font-family:monospace, Courier;font-size:54px;font-weight:900;color:#ff3333;background:#111;padding:12px 30px;border:6px solid #444;border-radius:12px;box-shadow:inset 0 0 10px rgba(0,0,0,0.8), 6px 8px 0 rgba(0,0,0,0.3);letter-spacing:4px}
 .answer-phase-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:15;font-size:52px;font-weight:900;color:#fff;text-shadow:3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;text-align:center;width:80%}
-.wave-transition{position:fixed;left:0;right:0;top:-120vh;height:120vh;background:url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%230099ff" d="M0,160L48,176C96,192,192,224,288,213.3C384,203,480,149,576,144C672,139,768,181,864,197.3C960,213,1056,203,1152,186.7C1248,171,1344,149,1392,138.7L1440,128L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,48,0L0,0Z"></path></svg>') bottom center / 100vw auto no-repeat, #0099ff;z-index:900;transition:top 1.2s cubic-bezier(0.4, 0, 0.2, 1);pointer-events:none}
-.wave-transition.active{top:100vh}
+/* --- Curtain Transition --- */
+.curtain-transition-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+  z-index: 9999;
+}
+.curtain-transition-panel {
+  width: 50%;
+  height: 100%;
+  background: repeating-linear-gradient(to right, #800000 0%, #b30000 5%, #800000 10%);
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.8), 0 0 30px rgba(0,0,0,0.9);
+  transition: transform 0.6s cubic-bezier(0.77, 0, 0.175, 1);
+}
+.curtain-transition-panel.left {
+  transform: translateX(-100%);
+  border-right: 10px solid #ffd700;
+}
+.curtain-transition-panel.right {
+  transform: translateX(100%);
+  border-left: 10px solid #ffd700;
+}
+.curtain-transition-overlay.active .curtain-transition-panel.left {
+  transform: translateX(0);
+}
+.curtain-transition-overlay.active .curtain-transition-panel.right {
+  transform: translateX(0);
+}
+
+/* --- Wooden Stage --- */
+.host-wooden-stage {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 150px;
+  background: url('/klpp-assets/lobby/wooden-stage.png') no-repeat bottom center;
+  background-size: 100% 100%;
+  z-index: 10;
+  display: none;
+  border-top: 6px solid #111;
+  box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+}
+.scoreboard-active .host-wooden-stage {
+  display: block;
+}
+
+/* --- Spotlight Effect --- */
+.stage-spotlight {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 11;
+  background: 
+    radial-gradient(circle at 30% 0%, rgba(255,243,184,0.18) 0%, rgba(255,243,184,0) 50%),
+    radial-gradient(circle at 70% 0%, rgba(255,243,184,0.18) 0%, rgba(255,243,184,0) 50%);
+  mix-blend-mode: screen;
+  display: none;
+  animation: spotlight-sweep 6s ease-in-out infinite alternate;
+}
+.scoreboard-active .stage-spotlight {
+  display: block;
+}
+/* When first place podium displays, we can highlight the center spotlight */
+.scoreboard-active.podium-revealed .stage-spotlight {
+  animation: spotlight-sweep-focus 3s ease-in-out infinite alternate;
+}
+@keyframes spotlight-sweep {
+  0% {
+    background: 
+      radial-gradient(circle at 25% -10%, rgba(255,243,184,0.22) 0%, rgba(255,243,184,0) 55%),
+      radial-gradient(circle at 75% -10%, rgba(255,243,184,0.22) 0%, rgba(255,243,184,0) 55%);
+  }
+  100% {
+    background: 
+      radial-gradient(circle at 35% -10%, rgba(255,243,184,0.22) 0%, rgba(255,243,184,0) 55%),
+      radial-gradient(circle at 65% -10%, rgba(255,243,184,0.22) 0%, rgba(255,243,184,0) 55%);
+  }
+}
+@keyframes spotlight-sweep-focus {
+  0% {
+    background: 
+      radial-gradient(circle at 25% -10%, rgba(255,243,184,0.15) 0%, rgba(255,243,184,0) 50%),
+      radial-gradient(circle at 50% -20%, rgba(255,215,0,0.4) 0%, rgba(255,215,0,0) 65%),
+      radial-gradient(circle at 75% -10%, rgba(255,243,184,0.15) 0%, rgba(255,243,184,0) 50%);
+  }
+  100% {
+    background: 
+      radial-gradient(circle at 30% -10%, rgba(255,243,184,0.15) 0%, rgba(255,243,184,0) 50%),
+      radial-gradient(circle at 50% -20%, rgba(255,215,0,0.5) 0%, rgba(255,215,0,0) 65%),
+      radial-gradient(circle at 70% -10%, rgba(255,243,184,0.15) 0%, rgba(255,243,184,0) 50%);
+  }
+}
+
+/* --- Live reactions container --- */
+.live-reactions-container {
+  position: absolute;
+  bottom: 0; left: 0; right: 0; top: 0;
+  pointer-events: none;
+  z-index: 120;
+  overflow: hidden;
+}
+.floating-emoji {
+  position: absolute;
+  bottom: -50px;
+  font-size: 40px;
+  user-select: none;
+  animation: float-up-emoji 4s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+@keyframes float-up-emoji {
+  0% {
+    transform: translateY(0) scale(0.5) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(-5vh) scale(1.2) rotate(10deg);
+  }
+  100% {
+    transform: translateY(-110vh) scale(0.8) rotate(-20deg);
+    opacity: 0;
+  }
+}
+
+/* --- Player reactions bar --- */
+.player-reactions-bar {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 3px dashed #eee;
+  width: 100%;
+}
+.player-reactions-bar .reaction-btn {
+  font-size: 28px;
+  background: #fff;
+  border: 3px solid #111;
+  border-radius: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.15);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.player-reactions-bar .reaction-btn:hover {
+  background: #fff3b8;
+}
+.player-reactions-bar .reaction-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(0,0,0,0.15);
+}
+
+/* --- Duel Transitions & Card States --- */
+.stage-panel.vote-mode .vote-card.winner {
+  border-color: #ffd93d !important;
+  box-shadow: 0 0 35px rgba(255, 217, 61, 0.7), 8px 8px 0 rgba(0,0,0,0.15) !important;
+  animation: winner-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+.stage-panel.vote-mode .vote-card.loser {
+  opacity: 0.5;
+  transform: scale(0.9) rotate(-3deg);
+  filter: grayscale(0.6);
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.1) !important;
+  transition: all 0.5s ease;
+}
+@keyframes winner-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.14) rotate(-2deg); }
+  100% { transform: scale(1.08) rotate(1deg); }
+}
+
+.stage-panel.vote-mode .stage-vote-pair.fly-left-out {
+  animation: fly-out-left 0.5s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+}
+.stage-panel.vote-mode .stage-vote-pair.fly-right-in {
+  animation: fly-in-right 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards;
+}
+.stage-panel.vote-mode .stage-prompt.fly-left-out {
+  animation: fly-out-left 0.5s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+}
+.stage-panel.vote-mode .stage-prompt.fly-right-in {
+  animation: fly-in-right 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards;
+}
+
+@keyframes fly-out-left {
+  0% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-120vw); opacity: 0; }
+}
+@keyframes fly-in-right {
+  0% { transform: translateX(120vw); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
 
 /* --- Theatrical Curtains --- */
 .curtain-left, .curtain-right {
@@ -1048,7 +1237,13 @@ img{display:block;max-width:100%}
           Игроки отвечают на своих устройствах
         </div>
 
-        <div class="wave-transition" id="hostWaveTransition"></div>
+        <div class="curtain-transition-overlay" id="hostCurtainTransition">
+          <div class="curtain-transition-panel left"></div>
+          <div class="curtain-transition-panel right"></div>
+        </div>
+        <div class="host-wooden-stage" id="hostWoodenStage"></div>
+        <div class="stage-spotlight" id="hostSpotlights"></div>
+        <div class="live-reactions-container" id="liveReactionsContainer"></div>
 
         <div class="host-qr-card"><img id="qrImage" alt="QR код для входа"></div>
 
@@ -1196,6 +1391,13 @@ img{display:block;max-width:100%}
 
         <div class="player-message player-wait" id="playerMessage">Подключаемся.</div>
         <div class="player-list" id="playerList"></div>
+        <div class="player-reactions-bar" id="playerReactionsBar" hidden>
+          <button type="button" class="reaction-btn" data-emoji="😂">😂</button>
+          <button type="button" class="reaction-btn" data-emoji="💩">💩</button>
+          <button type="button" class="reaction-btn" data-emoji="🔥">🔥</button>
+          <button type="button" class="reaction-btn" data-emoji="🤔">🤔</button>
+          <button type="button" class="reaction-btn" data-emoji="🤡">🤡</button>
+        </div>
       </div>
       <div class="player-hill-note">Первый зашедший игрок становится owner — только он может запустить игру.</div>
     </div>

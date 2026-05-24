@@ -41,7 +41,11 @@
     lastTransitionRound: 0,
     prevSnapState: "",
     comboStreaks: {},
-    devMode: false
+    devMode: false,
+    lastVoteIndex: -1,
+    hostTransitionTimeout: null,
+    duelTransitionTimeout: null,
+    podiumTimer: null
   };
 
   /* ───── Web Audio Sound Engine ───── */
@@ -322,7 +326,12 @@
     playerAbilitySelect: id("playerAbilitySelect"),
     playerAbilityOptions: id("playerAbilityOptions"),
     playerMessage: id("playerMessage"),
-    playerList: id("playerList")
+    playerList: id("playerList"),
+    playerReactionsBar: id("playerReactionsBar"),
+    hostCurtainTransition: id("hostCurtainTransition"),
+    hostWoodenStage: id("hostWoodenStage"),
+    hostSpotlights: id("hostSpotlights"),
+    liveReactionsContainer: id("liveReactionsContainer")
   };
 
   bindEvents();
@@ -480,6 +489,47 @@
     });
 
     initEditorTabs();
+
+    if(els.playerReactionsBar){
+      els.playerReactionsBar.addEventListener("click", function(e){
+        var btn = e.target.closest(".reaction-btn");
+        if(btn){
+          var emoji = btn.getAttribute("data-emoji");
+          if(emoji){
+            sendReaction(emoji);
+          }
+        }
+      });
+    }
+  }
+
+  async function sendReaction(emoji){
+    if(!state.roomId) return;
+    try{
+      await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/reaction", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({emoji: emoji})
+      });
+    }catch(err){
+      console.error("Failed to send reaction:", err);
+    }
+  }
+
+  function handleIncomingReaction(emoji){
+    var container = els.liveReactionsContainer || id("liveReactionsContainer");
+    if(!container) return;
+    var el = document.createElement("span");
+    el.className = "floating-emoji";
+    el.textContent = emoji;
+    var randomLeft = Math.random() * 90 + 5;
+    el.style.left = randomLeft + "vw";
+    container.appendChild(el);
+    setTimeout(function(){
+      if(el.parentNode === container){
+        container.removeChild(el);
+      }
+    }, 4000);
   }
 
   function bootFromUrl(){
@@ -507,6 +557,9 @@
     // theatre curtains bleed onto the home menu and lobby screens.
     if(view !== "host"){
       document.body.classList.remove("scoreboard-active");
+    }
+    if(view !== "player" && els.playerReactionsBar){
+      els.playerReactionsBar.hidden = true;
     }
     state.view = view;
     state.roomId = sanitizeRoomId(roomId || "");
@@ -595,6 +648,10 @@
               state.sseConfirmed = true;
               stopPolling();
               handleSnapshot(msg.room);
+            } else if(msg && msg.type === "reaction" && msg.emoji){
+              if(state.view === "host"){
+                handleIncomingReaction(msg.emoji);
+              }
             }
           }catch(error){ /* ignore */ }
         };
@@ -699,9 +756,82 @@
     }
     state.prevSnapState = snap.state;
 
-    if(state.view === "host") renderHost(snap);
-    else if(state.view === "player") renderPlayer(snap);
-    startLocalTimerIfNeeded(snap);
+    // Cancel any pending transition timeouts
+    if(state.hostTransitionTimeout){
+      clearTimeout(state.hostTransitionTimeout);
+      state.hostTransitionTimeout = null;
+    }
+    if(state.duelTransitionTimeout){
+      clearTimeout(state.duelTransitionTimeout);
+      state.duelTransitionTimeout = null;
+    }
+
+    var prevVoteIndex = state.lastVoteIndex;
+    var voteIndex = (snap.currentVote && (snap.state === "vote" || snap.state === "vote_result")) ? snap.currentVote.voteIndex : -1;
+    state.lastVoteIndex = voteIndex;
+
+    if(state.view === "host"){
+      var isVoteOrVoteResult = function(s) {
+        return s === "vote" || s === "vote_result";
+      };
+      var isExempt = isVoteOrVoteResult(prevState) && isVoteOrVoteResult(snap.state);
+      var playCurtain = prevState && (snap.state !== prevState) && !isExempt;
+      
+      var playDuelTransition = !playCurtain && isVoteOrVoteResult(prevState) && isVoteOrVoteResult(snap.state) && prevVoteIndex !== -1 && voteIndex !== -1 && prevVoteIndex !== voteIndex;
+
+      if(playCurtain){
+        var transitionEl = els.hostCurtainTransition || id("hostCurtainTransition");
+        if(transitionEl){
+          transitionEl.classList.add("active");
+        }
+        state.hostTransitionTimeout = setTimeout(function(){
+          state.hostTransitionTimeout = null;
+          renderHost(snap);
+          startLocalTimerIfNeeded(snap);
+          if(transitionEl){
+            transitionEl.classList.remove("active");
+          }
+        }, 600);
+      } else if(playDuelTransition){
+        var promptEl = els.hostStagePrompt;
+        var pairEl = els.hostStageBody.querySelector(".stage-vote-pair");
+        var finalGridEl = els.hostStageBody.querySelector(".final-lash-grid");
+        
+        if(promptEl) promptEl.classList.add("fly-left-out");
+        if(pairEl) pairEl.classList.add("fly-left-out");
+        if(finalGridEl) finalGridEl.classList.add("fly-left-out");
+
+        state.duelTransitionTimeout = setTimeout(function(){
+          state.duelTransitionTimeout = null;
+          renderHost(snap);
+          startLocalTimerIfNeeded(snap);
+          
+          var newPromptEl = els.hostStagePrompt;
+          var newPairEl = els.hostStageBody.querySelector(".stage-vote-pair");
+          var newFinalGridEl = els.hostStageBody.querySelector(".final-lash-grid");
+          
+          if(newPromptEl){
+            newPromptEl.classList.remove("fly-left-out");
+            newPromptEl.classList.add("fly-right-in");
+            setTimeout(function(){ newPromptEl.classList.remove("fly-right-in"); }, 650);
+          }
+          if(newPairEl){
+            newPairEl.classList.add("fly-right-in");
+            setTimeout(function(){ newPairEl.classList.remove("fly-right-in"); }, 650);
+          }
+          if(newFinalGridEl){
+            newFinalGridEl.classList.add("fly-right-in");
+            setTimeout(function(){ newFinalGridEl.classList.remove("fly-right-in"); }, 650);
+          }
+        }, 450);
+      } else {
+        renderHost(snap);
+        startLocalTimerIfNeeded(snap);
+      }
+    } else {
+      if(state.view === "player") renderPlayer(snap);
+      startLocalTimerIfNeeded(snap);
+    }
   }
 
   /* ───── Local phase timer ───── */
@@ -1185,7 +1315,24 @@
 
     renderHostModifierBadges(snap);
     renderRoundTransitionOverlay(snap);
-    checkWaveTransition(snap);
+
+    if(snap.state === "round_score" || snap.state === "finished"){
+      if(!document.body.classList.contains("podium-revealed")){
+        if(state.podiumTimer) clearTimeout(state.podiumTimer);
+        state.podiumTimer = setTimeout(function(){
+          state.podiumTimer = null;
+          if(state.room && (state.room.state === "round_score" || state.room.state === "finished")){
+            document.body.classList.add("podium-revealed");
+          }
+        }, 1500);
+      }
+    } else {
+      if(state.podiumTimer){
+        clearTimeout(state.podiumTimer);
+        state.podiumTimer = null;
+      }
+      document.body.classList.remove("podium-revealed");
+    }
 
     var canPause = snap.hostControls && snap.hostControls.canPause;
     var canResume = snap.hostControls && snap.hostControls.canResume;
@@ -1216,25 +1363,7 @@
     els.hostModifiers.innerHTML = mods.map(buildModifierBadgeHtml).join("");
   }
 
-  
-  var prevHostState = "";
-  function checkWaveTransition(snap) {
-    if (state.view !== "host") return;
-    if (prevHostState === "answer" && (snap.state === "vote" || snap.state === "vote_result")) {
-      var wave = document.getElementById("hostWaveTransition");
-      if (wave) {
-        wave.classList.remove("active");
-        wave.style.top = "-120vh";
-        wave.style.transition = "none";
-        setTimeout(() => {
-          wave.style.transition = "top 1.2s cubic-bezier(0.4, 0, 0.2, 1)";
-          wave.style.top = "";
-          wave.style.top = ""; wave.classList.add("active");
-        }, 50);
-      }
-    }
-    prevHostState = snap.state;
-  }
+
 
   function renderRoundTransitionOverlay(snap){
     if(!els.hostRoundTransition) return;
@@ -1418,14 +1547,21 @@
     var missing = side === "left" ? vote.leftMissing : vote.rightMissing;
     var pct = vote.result ? (side === "left" ? vote.result.leftPercent : vote.result.rightPercent) : null;
     var delta = vote.result ? (side === "left" ? vote.result.leftScoreDelta : vote.result.rightScoreDelta) : null;
+    
     var hideAuthor = vote && vote.anonymous && !showResult;
-    var avatarHtml = hideAuthor ? renderAnonymousAvatarHtml() : renderAvatarHtml(author && author.avatar, "sm");
-    var authorName = hideAuthor
-      ? escapeHtml(side === "left" ? (vote.leftNickname || "Игрок А") : (vote.rightNickname || "Игрок Б"))
-      : (author ? escapeHtml(author.nickname) : escapeHtml(side === "left" ? (vote.leftNickname || "Игрок") : (vote.rightNickname || "Игрок")));
+    var isLoser = showResult && !isWinner && vote.result && vote.result.leftPercent !== vote.result.rightPercent;
+    var cardClass = "vote-card" + (isWinner ? " winner" : "") + (isLoser ? " loser" : "");
+
+    var authorHtml = "";
+    if(!hideAuthor) {
+      var avatarHtml = renderAvatarHtml(author && author.avatar, "sm");
+      var authorName = author ? escapeHtml(author.nickname) : escapeHtml(side === "left" ? (vote.leftNickname || "Игрок") : (vote.rightNickname || "Игрок"));
+      authorHtml = '<div class="vote-author">' + avatarHtml + '<span>' + authorName + '</span></div>';
+    }
+    
     var reverseLabel = isReverse ? '<div style="font-size:0.72em;opacity:0.65;margin-bottom:3px">❓ Вопрос:</div>' : '';
-    return '<div class="vote-card' + (isWinner ? " winner" : "") + '">' +
-      '<div class="vote-author">' + avatarHtml + '<span>' + authorName + '</span></div>' +
+    return '<div class="' + cardClass + '">' +
+      authorHtml +
       '<div class="vote-text">' + reverseLabel + (missing ? '<em style="opacity:.7">НЕТ ОТВЕТА</em>' : escapeHtml(text)) + '</div>' +
       (showResult ? '<div class="vote-tally"><span>' + (pct == null ? 0 : pct) + "%</span><span>+" + (delta || 0) + "</span></div>" : "") +
     '</div>';
@@ -1450,15 +1586,12 @@
       var isWinner = showResult && maxVotes > 0 && ans.voteCount === maxVotes;
       var cardClass = "final-lash-card" + (isWinner ? " winner" : "");
       
-      var avatarHtml = "";
-      var authorName = "";
+      var authorHtml = "";
       if (showResult) {
         var player = lookupPlayer(snap, ans.clientId);
-        avatarHtml = renderAvatarHtml(player ? player.avatar : null, "sm");
-        authorName = player ? escapeHtml(player.nickname) : escapeHtml(ans.nickname);
-      } else {
-        avatarHtml = renderAnonymousAvatarHtml();
-        authorName = escapeHtml(ans.nickname);
+        var avatarHtml = renderAvatarHtml(player ? player.avatar : null, "sm");
+        var authorName = player ? escapeHtml(player.nickname) : escapeHtml(ans.nickname);
+        authorHtml = '<div class="final-lash-author">' + avatarHtml + '<span>' + authorName + '</span></div>';
       }
       
       var contentHtml = "";
@@ -1488,7 +1621,7 @@
       }
       
       html += '<div class="' + cardClass + '">' +
-        '<div class="final-lash-author">' + avatarHtml + '<span>' + authorName + '</span></div>' +
+        authorHtml +
         contentHtml +
         tallyHtml +
       '</div>';
@@ -1701,6 +1834,27 @@
       els.playerMessage.textContent = "Ждём продолжения.";
       els.playerMessage.hidden = false;
       els.playerCtaRow.innerHTML = "";
+    }
+    updatePlayerReactionsBarVisibility(snap);
+  }
+
+  function updatePlayerReactionsBarVisibility(snap){
+    if(!els.playerReactionsBar) return;
+    if(state.view !== "player" || !snap){
+      els.playerReactionsBar.hidden = true;
+      return;
+    }
+    var stateName = snap.state;
+    var viewer = snap.viewer || {};
+    var isAnswerPhase = stateName === "answer";
+    var hasAbilities = isAnswerPhase && snap.abilitySelect;
+    var hasPending = isAnswerPhase && viewer.currentAssignment && !hasAbilities;
+    
+    // Hidden when active answering or picking abilities
+    if(hasPending || hasAbilities){
+      els.playerReactionsBar.hidden = true;
+    } else {
+      els.playerReactionsBar.hidden = false;
     }
   }
 

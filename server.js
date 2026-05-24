@@ -2180,6 +2180,17 @@ function broadcastKlppRoom(room){
   });
 }
 
+function broadcastKlppReaction(room, emoji){
+  if(!room || !room.sseClients || !room.sseClients.size) return;
+  room.sseClients.forEach(function(client){
+    try{
+      client.res.write("data: " + JSON.stringify({type: "reaction", emoji: emoji}) + "\n\n");
+    }catch(error){
+      // res closed mid-write
+    }
+  });
+}
+
 function ensureKlppSseSet(room){
   if(!room.sseClients) room.sseClients = new Set();
   return room.sseClients;
@@ -2514,6 +2525,29 @@ const server = http.createServer(async function(req, res){
       room.settings = sanitizeKlppSettings(body.settings);
       broadcastKlppRoom(room);
       sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
+  const klppReactionMatch = pathname.match(/^\/api\/klpp\/room\/([^/]+)\/reaction$/);
+  if(req.method === "POST" && klppReactionMatch){
+    try{
+      const room = getKlppRoom(klppReactionMatch[1]);
+      if(!room){
+        sendJson(res, 404, {ok: false, error: "Room not found"});
+        return;
+      }
+      const body = await parseBody(req);
+      const emoji = String(body.emoji || "").trim();
+      const validEmojis = ["😂", "💩", "🔥", "🤔", "🤡"];
+      if(!emoji || validEmojis.indexOf(emoji) === -1){
+        sendJson(res, 400, {ok: false, error: "Invalid emoji"});
+        return;
+      }
+      broadcastKlppReaction(room, emoji);
+      sendJson(res, 200, {ok: true});
     }catch(error){
       sendJson(res, 400, {ok: false, error: error.message});
     }
