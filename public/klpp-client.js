@@ -285,7 +285,6 @@
     settingsDoublePointsLastRound: id("settingsDoublePointsLastRound"),
     settingsFinalRoundType: id("settingsFinalRoundType"),
     settingsQuestionSetId: id("settingsQuestionSetId"),
-    openEditorButton: id("openEditorButton"),
     screenEditor: id("screenEditor"),
     editorDuplicateBtn: id("editorDuplicateBtn"),
     editorTestBtn: id("editorTestBtn"),
@@ -391,11 +390,6 @@
     });
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    if(els.openEditorButton) {
-      els.openEditorButton.addEventListener("click", function(){
-        navigate("editor", state.roomId, {backTarget: {view:"settings", roomId: state.roomId}});
-      });
-    }
     if(els.desktopPacksButton){
       els.desktopPacksButton.addEventListener("click", function(){
         navigate("editor");
@@ -416,6 +410,9 @@
     var editorExitBtn = id("editorExitBtn");
     if(editorExitBtn) editorExitBtn.addEventListener("click", goBack);
     
+    var editorSelectSetBtn = id("editorSelectSetBtn");
+    if(editorSelectSetBtn) editorSelectSetBtn.addEventListener("click", selectEditorSetForGame);
+
     var editorSaveBtn = id("editorSaveBtn");
     if(editorSaveBtn) editorSaveBtn.addEventListener("click", saveEditorSet);
     
@@ -2485,6 +2482,7 @@
       if(set) {
         loadSetIntoEditor(set);
       }
+      updateSelectSetButtonState();
       id("editorStatusText").textContent = "";
     } catch(e) {
       id("editorStatusText").textContent = "Ошибка загрузки: " + e.message;
@@ -2497,6 +2495,9 @@
     
     var query = String(id("editorSearchInput") ? id("editorSearchInput").value : "").toLowerCase().trim();
     
+    var activeSettings = loadSettingsDraft();
+    var selectedSetId = activeSettings.questionSetId || "default";
+
     var filtered = (state.editorSets || []).filter(function(s){
       if(!query) return true;
       var nameMatch = String(s.name || "").toLowerCase().indexOf(query) !== -1;
@@ -2506,8 +2507,12 @@
 
     var items = filtered.map(function(s){
       var active = s.id === state.editorActiveSetId ? " active" : "";
+      var isSelectedGame = s.id === selectedSetId ? ' <span class="selected-badge" style="background:#2ecc71; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; margin-left:6px; font-weight:900;">АКТИВЕН</span>' : '';
       return '<button class="editor-set-item' + active + '" type="button" data-id="' + s.id + '">' +
-        '<strong>' + escapeHtml(s.name) + '</strong>' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; width:100%;">' +
+          '<strong>' + escapeHtml(s.name) + '</strong>' +
+          isSelectedGame +
+        '</div>' +
         '<div style="font-size:11px; opacity:0.75; font-weight:700; margin-top:3px;">Вопросов: ' + (s.questions || []).length + ', мемов: ' + (s.memes || []).length + '</div>' +
       '</button>';
     });
@@ -2539,8 +2544,74 @@
         var set = state.editorSets.find(function(s){ return s.id === id; });
         if(set) loadSetIntoEditor(set);
         else if(id === "" && state.editorCurrentSet) loadSetIntoEditor(state.editorCurrentSet);
+        updateSelectSetButtonState();
       });
     });
+  }
+
+  function updateSelectSetButtonState() {
+    var btn = id("editorSelectSetBtn");
+    if(!btn) return;
+    var activeSettings = loadSettingsDraft();
+    var selectedSetId = activeSettings.questionSetId || "default";
+    var isSelected = state.editorActiveSetId === selectedSetId;
+    if(isSelected) {
+      btn.style.background = "#2ecc71";
+      btn.style.color = "#fff";
+      btn.innerHTML = "✅ Выбран";
+      btn.disabled = true;
+    } else {
+      btn.style.background = "#ffd93d";
+      btn.style.color = "#111";
+      btn.innerHTML = "🎮 Выбрать для игры";
+      btn.disabled = false;
+    }
+    if(state.editorActiveSetId === "") {
+      btn.style.opacity = "0.5";
+      btn.disabled = true;
+    } else {
+      btn.style.opacity = "1";
+    }
+  }
+
+  async function selectEditorSetForGame() {
+    var setId = state.editorActiveSetId;
+    if(!setId) {
+      alert("Сначала сохраните набор, чтобы выбрать его для игры!");
+      return;
+    }
+    
+    // Save settings draft
+    var draft = loadSettingsDraft();
+    draft.questionSetId = setId;
+    saveSettingsDraft(draft);
+    
+    // Update settings dropdown if exists
+    if(els.settingsQuestionSetId) {
+      els.settingsQuestionSetId.value = setId;
+    }
+    
+    // If we have an active room, update settings on the server too!
+    if(state.roomId && state.hostKey) {
+      try {
+        var roomSettings = collectSettingsForm();
+        roomSettings.questionSetId = setId;
+        await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/settings", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({hostKey: state.hostKey, settings: roomSettings})
+        });
+      } catch(e) {
+        console.error("Failed to update active room settings", e);
+      }
+    }
+    
+    // Re-render list to update badges
+    renderEditorSetsList();
+    updateSelectSetButtonState();
+    
+    id("editorStatusText").textContent = "Набор выбран для игры!";
+    setTimeout(function(){ id("editorStatusText").textContent = ""; }, 2500);
   }
 
   function compileCurrentSet() {
@@ -2629,6 +2700,7 @@
     
     renderEditorMemes(set.memes || [], isDefault);
     updateEditorChecklist();
+    updateSelectSetButtonState();
   }
 
   function renderEditorMemes(memes, disabled) {
