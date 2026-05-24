@@ -162,6 +162,103 @@ const KLPP_REVERSE_ANSWERS = [
   "Наука пока не объяснила."
 ];
 
+const DATA_DIR = path.join(__dirname, "data");
+const QUESTION_SETS_FILE = path.join(DATA_DIR, "question_sets.json");
+
+// Default memes to include in standard set
+const KLPP_DEFAULT_MEMES = [
+  { name: "Джек-рассел терьер", url: "/klpp-assets/memes/dog.png" },
+  { name: "Удивлённый рыжий кот", url: "/klpp-assets/memes/cat.png" }
+];
+
+// Epically funny prompts for final round
+const KLPP_STARTER_FINAL_QUESTIONS = [
+  "Самое неподходящее место для романтического признания.",
+  "Что кричит водитель маршрутки, пролетая сквозь пространственно-временной портал?",
+  "Худший способ потратить миллиард долларов за один день.",
+  "Название для автобиографии человека, который совершил все ошибки в жизни.",
+  "Самая глупая суперсила для суперзлодея.",
+  "Что на самом деле написано мелким шрифтом в пользовательском соглашении?",
+  "Какая фраза точно разрушит любое собеседование в первые 5 секунд?",
+  "Чего бы вы никогда не хотели увидеть в качестве начинки для пирога?",
+  "Самый нелепый повод начать Третью мировую войну.",
+  "Что скажет инопланетянин, если его первым контактом на Земле станет гопник?",
+  "Какая реклама на билборде точно заставит водителей остановиться посреди трассы?",
+  "Идеальное название для фильма ужасов про работу в офисе.",
+  "Что снится вашему коту, когда он дёргает лапками во сне?",
+  "Самый дурацкий совет от бизнес-коуча в соцсетях.",
+  "Что кричит парашютист, если понял, что забыл надеть парашют, но хочет казаться крутым?"
+];
+
+function initQuestionSetsDb() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  let sets = [];
+  if (fs.existsSync(QUESTION_SETS_FILE)) {
+    try {
+      sets = JSON.parse(fs.readFileSync(QUESTION_SETS_FILE, "utf8"));
+    } catch (e) {
+      console.error("Error reading question sets, recreating...", e);
+    }
+  }
+  let defaultSet = sets.find(s => s.id === "default");
+  if (!defaultSet) {
+    defaultSet = {
+      id: "default",
+      name: "Стандартный набор",
+      description: "Оригинальные вопросы, ответы для реверса, финальные вопросы и шаблоны мемов.",
+      questions: KLPP_STARTER_QUESTIONS,
+      reverseAnswers: KLPP_REVERSE_ANSWERS,
+      finalQuestions: KLPP_STARTER_FINAL_QUESTIONS,
+      memes: KLPP_DEFAULT_MEMES
+    };
+    sets.unshift(defaultSet);
+    fs.writeFileSync(QUESTION_SETS_FILE, JSON.stringify(sets, null, 2), "utf8");
+  }
+  return sets;
+}
+
+function loadQuestionSets() {
+  return initQuestionSetsDb();
+}
+
+function saveQuestionSet(set) {
+  const sets = loadQuestionSets();
+  if (!set.id) {
+    set.id = "set_" + Math.random().toString(36).slice(2, 12);
+  }
+  set.questions = Array.isArray(set.questions) ? set.questions.filter(q => typeof q === "string" && q.trim()) : [];
+  set.reverseAnswers = Array.isArray(set.reverseAnswers) ? set.reverseAnswers.filter(a => typeof a === "string" && a.trim()) : [];
+  set.finalQuestions = Array.isArray(set.finalQuestions) ? set.finalQuestions.filter(q => typeof q === "string" && q.trim()) : [];
+  set.memes = Array.isArray(set.memes) ? set.memes.filter(m => m && typeof m.name === "string" && typeof m.url === "string") : [];
+
+  const index = sets.findIndex(s => s.id === set.id);
+  if (index !== -1) {
+    if (set.id === "default") {
+      set.name = "Стандартный набор";
+      set.description = "Оригинальные вопросы, ответы для реверса, финальные вопросы и шаблоны мемов.";
+    }
+    sets[index] = set;
+  } else {
+    sets.push(set);
+  }
+  fs.writeFileSync(QUESTION_SETS_FILE, JSON.stringify(sets, null, 2), "utf8");
+  return set;
+}
+
+function deleteQuestionSet(id) {
+  if (id === "default") return false;
+  const sets = loadQuestionSets();
+  const index = sets.findIndex(s => s.id === id);
+  if (index === -1) return false;
+  sets.splice(index, 1);
+  fs.writeFileSync(QUESTION_SETS_FILE, JSON.stringify(sets, null, 2), "utf8");
+  return true;
+}
+
+initQuestionSetsDb();
+
 // Grammar hint categories for blind_round. Each rule is a regex+label pair
 // applied in order — first match wins. Hints are written so the player can
 // guess the answer shape without seeing the actual question.
@@ -200,8 +297,15 @@ function klppBlindHintForQuestion(questionText){
   return KLPP_BLIND_HINT_DEFAULT;
 }
 
+function klppGetRoomQuestionSet(room) {
+  const sets = loadQuestionSets();
+  const set = sets.find(s => s.id === (room.settings && room.settings.questionSetId)) || sets.find(s => s.id === "default");
+  return set;
+}
+
 function takeKlppReverseAnswers(room, count){
-  const pool = KLPP_REVERSE_ANSWERS.slice();
+  const set = klppGetRoomQuestionSet(room);
+  const pool = (set && set.reverseAnswers && set.reverseAnswers.length) ? set.reverseAnswers.slice() : KLPP_REVERSE_ANSWERS.slice();
   const used = room.reverseAnswerHistory || [];
   const unused = pool.filter(function(a){ return used.indexOf(a) === -1; });
   let source = unused.length >= count ? unused : unused.concat(pool.filter(function(a){ return unused.indexOf(a) === -1; }));
@@ -220,7 +324,9 @@ const KLPP_DEFAULT_SETTINGS = Object.freeze({
   doublePointsLastRound: false,
   modifierMode: "off",
   selectedModifiers: [],
-  questionsPerPlayer: 2
+  questionsPerPlayer: 2,
+  questionSetId: "default",
+  finalRoundType: "final_lash"
 });
 
 const KLPP_ROUND_COUNT_PRESETS = [3, 5, 7];
@@ -329,6 +435,9 @@ function sanitizeKlppSettings(input){
     const drop = idxLeader < idxParty ? "ability_party" : "leader_abilities";
     selectedModifiers = selectedModifiers.filter(function(id){ return id !== drop; });
   }
+  const finalRoundType = ["final_lash", "meme_round", "random"].indexOf(raw.finalRoundType) !== -1 ? raw.finalRoundType : "final_lash";
+  const questionSetId = typeof raw.questionSetId === "string" ? raw.questionSetId : "default";
+
   return {
     answerSeconds: Math.max(20, Math.min(180, Number(raw.answerSeconds) || KLPP_DEFAULT_SETTINGS.answerSeconds)),
     voteSeconds: Math.max(15, Math.min(120, Number(raw.voteSeconds) || KLPP_DEFAULT_SETTINGS.voteSeconds)),
@@ -338,7 +447,9 @@ function sanitizeKlppSettings(input){
     doublePointsLastRound: Boolean(raw.doublePointsLastRound),
     modifierMode: modifierMode,
     selectedModifiers: selectedModifiers,
-    questionsPerPlayer: Math.max(KLPP_QUESTIONS_PER_PLAYER_MIN, Math.min(KLPP_QUESTIONS_PER_PLAYER_MAX, Number(raw.questionsPerPlayer) || KLPP_DEFAULT_SETTINGS.questionsPerPlayer))
+    questionsPerPlayer: Math.max(KLPP_QUESTIONS_PER_PLAYER_MIN, Math.min(KLPP_QUESTIONS_PER_PLAYER_MAX, Number(raw.questionsPerPlayer) || KLPP_DEFAULT_SETTINGS.questionsPerPlayer)),
+    questionSetId: questionSetId,
+    finalRoundType: finalRoundType
   };
 }
 
@@ -570,10 +681,8 @@ function buildKlppQuestionPool(){
 }
 
 function takeKlppRoundQuestions(room, count){
-  const pool = buildKlppQuestionPool();
-  // If history covers more than 70% of pool, rotate the oldest out — this
-  // prevents "everything feels recently seen" after many games in one room
-  // while still avoiding back-to-back repeats.
+  const set = klppGetRoomQuestionSet(room);
+  const pool = (set && set.questions && set.questions.length) ? set.questions.slice() : KLPP_STARTER_QUESTIONS.slice();
   const keepHistory = Math.floor(pool.length * 0.7);
   if((room.questionHistory || []).length > keepHistory){
     room.questionHistory = room.questionHistory.slice(-keepHistory);
@@ -592,6 +701,18 @@ function takeKlppRoundQuestions(room, count){
     if(room.questionHistory.indexOf(text) === -1) room.questionHistory.push(text);
   });
   return picked;
+}
+
+function takeKlppFinalQuestions(room, count) {
+  const set = klppGetRoomQuestionSet(room);
+  const pool = (set && set.finalQuestions && set.finalQuestions.length) ? set.finalQuestions.slice() : KLPP_STARTER_FINAL_QUESTIONS.slice();
+  return shuffleKlpp(pool).slice(0, count);
+}
+
+function takeKlppMemes(room, count) {
+  const set = klppGetRoomQuestionSet(room);
+  const pool = (set && set.memes && set.memes.length) ? set.memes.slice() : KLPP_DEFAULT_MEMES.slice();
+  return shuffleKlpp(pool).slice(0, count);
 }
 
 // Build a k-regular graph on `players` (each node gets exactly k edges).
@@ -696,6 +817,97 @@ function setupKlppRound(room){
     return;
   }
   const nextRoundNumber = room.roundIndex + 1;
+  const isFinalRound = (nextRoundNumber === room.settings.roundCount);
+
+  if(isFinalRound){
+    const finalType = room.settings.finalRoundType || "final_lash";
+    let selectedFinalType = finalType;
+    if(finalType === "random"){
+      selectedFinalType = Math.random() > 0.5 ? "final_lash" : "meme_round";
+    }
+
+    const assignmentsByPlayer = {};
+    listKlppPlayers(room).forEach(function(player){
+      assignmentsByPlayer[player.clientId] = [];
+    });
+
+    let roundPairs = [];
+    let introText = "";
+
+    if(selectedFinalType === "meme_round"){
+      const memes = takeKlppMemes(room, 1);
+      const meme = memes[0] || KLPP_DEFAULT_MEMES[0];
+      const pairId = "meme-lash";
+      const baseAssignment = {
+        pairId: pairId,
+        questionText: meme.name,
+        memeImageUrl: meme.url,
+        hintText: null,
+        opponentClientId: null,
+        answerText: "",
+        submittedAt: 0,
+        status: "pending"
+      };
+      listKlppPlayers(room).forEach(function(player){
+        assignmentsByPlayer[player.clientId].push(clone(baseAssignment));
+      });
+      roundPairs = [{
+        pairId: pairId,
+        questionText: meme.name,
+        memeImageUrl: meme.url,
+        hintText: null,
+        players: listKlppPlayers(room).map(function(p){ return p.clientId; }),
+        baseKey: "meme-lash"
+      }];
+      introText = "Финальный раунд: МЕМ-РАУНД! Придумай смешной текст к картинке.";
+    } else {
+      const prompts = takeKlppFinalQuestions(room, 1);
+      const promptText = prompts[0] || "Самое неподходящее место для романтического признания.";
+      const pairId = "final-lash";
+      const baseAssignment = {
+        pairId: pairId,
+        questionText: promptText,
+        hintText: null,
+        opponentClientId: null,
+        answerText: "",
+        submittedAt: 0,
+        status: "pending"
+      };
+      listKlppPlayers(room).forEach(function(player){
+        assignmentsByPlayer[player.clientId].push(clone(baseAssignment));
+      });
+      roundPairs = [{
+        pairId: pairId,
+        questionText: promptText,
+        hintText: null,
+        players: listKlppPlayers(room).map(function(p){ return p.clientId; }),
+        baseKey: "final-lash"
+      }];
+      introText = "Финальный раунд: СМЕРТЕЛЬНЫЙ БОЙ! Один вопрос для всех.";
+    }
+
+    Object.keys(assignmentsByPlayer).forEach(function(clientId){
+      assignmentsByPlayer[clientId].forEach(function(item, index){
+        item.order = index;
+      });
+    });
+
+    room.currentRound = {
+      type: selectedFinalType,
+      roundNumber: nextRoundNumber,
+      pairs: roundPairs,
+      assignmentsByPlayer: assignmentsByPlayer,
+      voteQueue: [],
+      currentVoteIndex: 0,
+      introText: introText,
+      modifiers: []
+    };
+    room.roundIndex = nextRoundNumber;
+    room.lastRoundResult = null;
+    room.endedWithoutScore = false;
+    return;
+  }
+
   const pairs = generateKlppPairs(room);
   const modifiers = klppAssignModifiersToRound(room);
   const isReverse = modifiers.indexOf("reverse_round") !== -1;
@@ -881,6 +1093,34 @@ function fillKlppMissingAnswers(room){
 
 function buildKlppVoteQueue(room){
   if(!room.currentRound) return;
+
+  if(room.currentRound.type === "final_lash" || room.currentRound.type === "meme_round"){
+    const pair = room.currentRound.pairs[0];
+    const answers = listKlppPlayers(room).map(function(player){
+      const assList = room.currentRound.assignmentsByPlayer[player.clientId] || [];
+      const ass = assList.find(function(item){ return item.pairId === pair.pairId; });
+      return {
+        clientId: player.clientId,
+        nickname: player.nickname,
+        avatar: player.avatar,
+        answerText: ass && ass.status === "answered" ? ass.answerText : KLPP_NO_ANSWER_TEXT,
+        missing: !ass || ass.status !== "answered"
+      };
+    });
+
+    room.currentRound.voteQueue = [{
+      pairId: pair.pairId,
+      type: room.currentRound.type,
+      questionText: pair.questionText,
+      memeImageUrl: pair.memeImageUrl || null,
+      answers: shuffleKlpp(answers),
+      votes: {},
+      result: null
+    }];
+    room.currentRound.currentVoteIndex = 0;
+    return;
+  }
+
   room.currentRound.voteQueue = room.currentRound.pairs.map(function(pair){
     const firstId = pair.players[0];
     const secondId = pair.players[1];
@@ -916,6 +1156,9 @@ function getKlppCurrentVote(room){
 
 function listKlppEligibleVoters(room, vote){
   const playerIds = listKlppPlayers(room).map(function(player){ return player.clientId; });
+  if(vote.type === "final_lash" || vote.type === "meme_round"){
+    return playerIds;
+  }
   if(room.settings.selfVotingEnabled) return playerIds;
   return playerIds.filter(function(clientId){
     return clientId !== vote.leftClientId && clientId !== vote.rightClientId;
@@ -925,6 +1168,61 @@ function listKlppEligibleVoters(room, vote){
 function finalizeKlppVote(room){
   const vote = getKlppCurrentVote(room);
   if(!vote || vote.result) return;
+
+  const isLastRound = (room.roundIndex || 0) >= (room.settings.roundCount || 5);
+  const nameMap = new Map(listKlppPlayers(room).map(function(player){ return [player.clientId, player.nickname]; }));
+
+  if(vote.type === "final_lash" || vote.type === "meme_round"){
+    const voteCounts = {};
+    const voterMap = {};
+    vote.answers.forEach(function(ans){
+      voteCounts[ans.clientId] = 0;
+      voterMap[ans.clientId] = [];
+    });
+
+    Object.keys(vote.votes || {}).forEach(function(voterId){
+      const targetId = vote.votes[voterId];
+      if(voteCounts[targetId] !== undefined){
+        voteCounts[targetId] += 1;
+        voterMap[targetId].push(nameMap.get(voterId) || "Игрок");
+      }
+    });
+
+    const votePointsPerVote = (room.settings.doublePointsLastRound && isLastRound) ? 300 : 150;
+
+    const answersResult = vote.answers.map(function(ans){
+      let scoreDelta = voteCounts[ans.clientId] * votePointsPerVote;
+      if(ans.missing){
+        scoreDelta = 0;
+      }
+      room.scoreboard[ans.clientId] = Math.max(0, (room.scoreboard[ans.clientId] || 0) + scoreDelta);
+
+      return {
+        clientId: ans.clientId,
+        nickname: ans.nickname,
+        avatar: ans.avatar,
+        answerText: ans.answerText,
+        missing: ans.missing,
+        voteCount: voteCounts[ans.clientId],
+        voters: voterMap[ans.clientId],
+        scoreDelta: scoreDelta
+      };
+    }).sort(function(a, b){
+      return b.voteCount - a.voteCount;
+    });
+
+    vote.result = {
+      type: vote.type,
+      questionText: vote.questionText,
+      memeImageUrl: vote.memeImageUrl,
+      answers: answersResult,
+      doublePoints: Boolean(room.settings.doublePointsLastRound && isLastRound)
+    };
+
+    setKlppState(room, "vote_result");
+    return;
+  }
+
   const eligibleVoters = listKlppEligibleVoters(room, vote);
   let leftVotes = 0;
   let rightVotes = 0;
@@ -966,7 +1264,6 @@ function finalizeKlppVote(room){
   });
   let leftScoreDelta = transformed && typeof transformed.left === "number" ? transformed.left : leftBase;
   let rightScoreDelta = transformed && typeof transformed.right === "number" ? transformed.right : rightBase;
-  const isLastRound = (room.roundIndex || 0) >= (room.settings.roundCount || 5);
   if(room.settings.doublePointsLastRound && isLastRound){
     leftScoreDelta *= 2;
     rightScoreDelta *= 2;
@@ -981,7 +1278,6 @@ function finalizeKlppVote(room){
   }
   room.scoreboard[vote.leftClientId] = Math.max(0, (room.scoreboard[vote.leftClientId] || 0) + leftScoreDelta);
   room.scoreboard[vote.rightClientId] = Math.max(0, (room.scoreboard[vote.rightClientId] || 0) + rightScoreDelta);
-  const nameMap = new Map(listKlppPlayers(room).map(function(player){ return [player.clientId, player.nickname]; }));
   vote.result = {
     leftClientId: vote.leftClientId,
     rightClientId: vote.rightClientId,
@@ -1235,6 +1531,7 @@ function klppViewerCurrentAssignment(room, clientId){
     pairId: pending.pairId,
     questionText: pending.questionText,
     displayText: (isBlind && pending.hintText) ? pending.hintText : pending.questionText,
+    memeImageUrl: pending.memeImageUrl || null,
     hintText: pending.hintText || null,
     isBlind: Boolean(isBlind && pending.hintText),
     isReverse: isReverse,
@@ -1254,6 +1551,31 @@ function klppViewerVote(room, clientId, players){
   const vote = getKlppCurrentVote(room);
   if(!vote) return null;
   const eligible = listKlppEligibleVoters(room, vote);
+
+  if(vote.type === "final_lash" || vote.type === "meme_round"){
+    const chosenClientId = vote.votes ? (vote.votes[clientId] || "") : "";
+    const anonymizedAnswers = vote.answers.map(function(ans, index){
+      return {
+        clientId: ans.clientId,
+        nickname: `Игрок ${index + 1}`,
+        avatar: null,
+        answerText: ans.answerText,
+        missing: ans.missing
+      };
+    });
+
+    return {
+      pairId: vote.pairId,
+      type: vote.type,
+      questionText: vote.questionText,
+      memeImageUrl: vote.memeImageUrl,
+      answers: anonymizedAnswers,
+      chosenClientId: chosenClientId,
+      isAuthor: true,
+      canVote: true
+    };
+  }
+
   const isAuthor = clientId === vote.leftClientId || clientId === vote.rightClientId;
   const canVote = eligible.indexOf(clientId) !== -1;
   const hideAuthors = klppHideAuthorsNow(room, vote, clientId);
@@ -1294,15 +1616,39 @@ function klppSerializeCurrentVote(room, nameMap){
   if(!vote) return null;
   const eligible = listKlppEligibleVoters(room, vote);
   const votesGiven = Object.keys(vote.votes || {}).filter(function(voter){ return eligible.indexOf(voter) !== -1; }).length;
+
+  if(vote.type === "final_lash" || vote.type === "meme_round"){
+    const hideNow = !vote.result;
+    const serializedAnswers = vote.answers.map(function(ans, index){
+      return {
+        clientId: hideNow ? `anon_${index}` : ans.clientId,
+        nickname: hideNow ? `Игрок ${index + 1}` : ans.nickname,
+        avatar: hideNow ? null : clone(ans.avatar || null),
+        answerText: ans.answerText,
+        missing: ans.missing
+      };
+    });
+
+    return {
+      pairId: vote.pairId,
+      type: vote.type,
+      questionText: vote.questionText,
+      memeImageUrl: vote.memeImageUrl,
+      answers: serializedAnswers,
+      votesGiven: votesGiven,
+      eligibleVoters: eligible.length,
+      voteIndex: room.currentRound.currentVoteIndex || 0,
+      voteTotal: (room.currentRound.voteQueue || []).length,
+      result: vote.result ? clone(vote.result) : null
+    };
+  }
+
   const hideAuthors = klppHideAuthorsNow(room, vote, null);
   const isReverse = room.currentRound && room.currentRound.type === "reverse";
-  // In vote phase, always show full question. For reverse_round: questionText = punchline, leftText/rightText = player-written questions.
-  // Labels flip accordingly.
   return {
     pairId: vote.pairId,
     questionText: vote.questionText,
     isReverse: Boolean(isReverse),
-    // For reverse_round, during voting we show the punchline prominently and vote on the written questions
     reverseLabel: isReverse ? "🎯 Готовый ответ" : null,
     leftClientId: vote.leftClientId,
     rightClientId: vote.rightClientId,
@@ -1764,10 +2110,17 @@ function klppRunBotAutoplay(room){
       const list = assignmentsByPlayer[p.clientId] || [];
       list.forEach(function(assignment){
         if(assignment.status !== "pending") return;
-        // Stagger by pair order so bots don't all answer simultaneously
         const stagger = (assignment.order || 0) * 900 + Math.random() * 600;
         if(elapsed < 1200 + stagger) return;
-        assignment.answerText = klppRandomBotAnswer();
+        
+        if(room.currentRound.type === "meme_round"){
+          const topText = klppRandomBotAnswer();
+          const bottomText = klppRandomBotAnswer();
+          assignment.answerText = JSON.stringify({top: topText, bottom: bottomText});
+        } else {
+          assignment.answerText = klppRandomBotAnswer();
+        }
+        
         assignment.submittedAt = Date.now();
         assignment.status = "answered";
       });
@@ -1783,15 +2136,24 @@ function klppRunBotAutoplay(room){
         if(!p.isBot) return;
         if(eligible.indexOf(p.clientId) === -1) return;
         if(vote.votes && vote.votes[p.clientId]) return; // already voted
-        // Random pick weighted slightly toward not-missing answer
-        const leftValid = !vote.leftMissing;
-        const rightValid = !vote.rightMissing;
-        let target;
-        if(leftValid && !rightValid) target = vote.leftClientId;
-        else if(rightValid && !leftValid) target = vote.rightClientId;
-        else target = Math.random() < 0.5 ? vote.leftClientId : vote.rightClientId;
-        vote.votes = vote.votes || {};
-        vote.votes[p.clientId] = target;
+        
+        if(vote.type === "final_lash" || vote.type === "meme_round"){
+          const eligibleAnswers = vote.answers.filter(function(a){ return a.clientId !== p.clientId && !a.missing; });
+          if(eligibleAnswers.length > 0){
+            const chosen = eligibleAnswers[Math.floor(Math.random() * eligibleAnswers.length)];
+            vote.votes = vote.votes || {};
+            vote.votes[p.clientId] = chosen.clientId;
+          }
+        } else {
+          const leftValid = !vote.leftMissing;
+          const rightValid = !vote.rightMissing;
+          let target;
+          if(leftValid && !rightValid) target = vote.leftClientId;
+          else if(rightValid && !leftValid) target = vote.rightClientId;
+          else target = Math.random() < 0.5 ? vote.leftClientId : vote.rightClientId;
+          vote.votes = vote.votes || {};
+          vote.votes[p.clientId] = target;
+        }
       });
     }
   }
@@ -1885,6 +2247,42 @@ const server = http.createServer(async function(req, res){
       lanHosts: lanHosts,
       publicUrl: PUBLIC_URL
     });
+    return;
+  }
+
+  if(req.method === "GET" && pathname === "/api/klpp/question-sets"){
+    sendJson(res, 200, {ok: true, questionSets: loadQuestionSets()});
+    return;
+  }
+
+  if(req.method === "POST" && pathname === "/api/klpp/question-sets"){
+    try{
+      const body = await parseBody(req);
+      if(!body.name){
+        sendJson(res, 400, {ok: false, error: "Название набора обязательно"});
+        return;
+      }
+      const saved = saveQuestionSet(body);
+      sendJson(res, 200, {ok: true, questionSet: saved});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
+  const klppDeleteSetMatch = pathname.match(/^\/api\/klpp\/question-sets\/([^/]+)$/);
+  if(req.method === "DELETE" && klppDeleteSetMatch){
+    try{
+      const id = klppDeleteSetMatch[1];
+      const success = deleteQuestionSet(id);
+      if(success){
+        sendJson(res, 200, {ok: true});
+      }else{
+        sendJson(res, 400, {ok: false, error: "Не удалось удалить набор (возможно, это стандартный набор)"});
+      }
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
     return;
   }
 
@@ -2185,14 +2583,25 @@ const server = http.createServer(async function(req, res){
         sendJson(res, 409, {ok: false, error: "Этот вопрос уже сменился"});
         return;
       }
-      if(targetClientId !== currentVote.leftClientId && targetClientId !== currentVote.rightClientId){
-        sendJson(res, 400, {ok: false, error: "Неизвестный кандидат"});
-        return;
-      }
-      const eligibleVoters = listKlppEligibleVoters(room, currentVote);
-      if(eligibleVoters.indexOf(clientId) === -1){
-        sendJson(res, 403, {ok: false, error: "Ты не можешь голосовать в этом вопросе"});
-        return;
+      if(currentVote.type === "final_lash" || currentVote.type === "meme_round"){
+        if(!currentVote.answers.some(function(a){ return a.clientId === targetClientId; })){
+          sendJson(res, 400, {ok: false, error: "Неизвестный кандидат"});
+          return;
+        }
+        if(clientId === targetClientId){
+          sendJson(res, 400, {ok: false, error: "Нельзя голосовать за самого себя"});
+          return;
+        }
+      } else {
+        if(targetClientId !== currentVote.leftClientId && targetClientId !== currentVote.rightClientId){
+          sendJson(res, 400, {ok: false, error: "Неизвестный кандидат"});
+          return;
+        }
+        const eligibleVoters = listKlppEligibleVoters(room, currentVote);
+        if(eligibleVoters.indexOf(clientId) === -1){
+          sendJson(res, 403, {ok: false, error: "Ты не можешь голосовать в этом вопросе"});
+          return;
+        }
       }
       currentVote.votes = currentVote.votes || {};
       currentVote.votes[clientId] = targetClientId;

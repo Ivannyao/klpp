@@ -14,7 +14,9 @@
     doublePointsLastRound: false,
     modifierMode: "off",
     selectedModifiers: [],
-    questionsPerPlayer: 2
+    questionsPerPlayer: 2,
+    questionSetId: "default",
+    finalRoundType: "final_lash"
   };
   var KLPP_ROUND_COUNT_PRESETS = [3, 5, 7];
 
@@ -279,6 +281,10 @@
     settingsSelfVotingEnabled: id("settingsSelfVotingEnabled"),
     settingsAnonymousAnswers: id("settingsAnonymousAnswers"),
     settingsDoublePointsLastRound: id("settingsDoublePointsLastRound"),
+    settingsFinalRoundType: id("settingsFinalRoundType"),
+    settingsQuestionSetId: id("settingsQuestionSetId"),
+    openEditorButton: id("openEditorButton"),
+    screenEditor: id("screenEditor"),
     settingsModifierList: id("settingsModifierList"),
     hostModifiers: id("hostModifiers"),
     hostRoundTransition: id("hostRoundTransition"),
@@ -347,6 +353,20 @@
     if(els.playerAnswerInput){
       els.playerAnswerInput.addEventListener("input", validateLocalAnswerInput);
     }
+    var topInput = id("playerAnswerMemeTop");
+    var bottomInput = id("playerAnswerMemeBottom");
+    if(topInput){
+      topInput.addEventListener("input", function(){
+        var preview = id("playerAnswerMemePreviewTop");
+        if(preview) preview.textContent = topInput.value.toUpperCase();
+      });
+    }
+    if(bottomInput){
+      bottomInput.addEventListener("input", function(){
+        var preview = id("playerAnswerMemePreviewBottom");
+        if(preview) preview.textContent = bottomInput.value.toUpperCase();
+      });
+    }
     els.hostPauseButton.addEventListener("click", hostPauseToggle);
     els.hostEndButton.addEventListener("click", hostEnd);
     // Dev mode wiring
@@ -366,6 +386,38 @@
       if(state.view === "host" && state.room) renderHost(state.room);
     });
     document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    if(els.openEditorButton) {
+      els.openEditorButton.addEventListener("click", function(){
+        navigate("editor", state.roomId, {backTarget: {view:"settings", roomId: state.roomId}});
+      });
+    }
+    
+    var editorExitBtn = id("editorExitBtn");
+    if(editorExitBtn) editorExitBtn.addEventListener("click", goBack);
+    
+    var editorSaveBtn = id("editorSaveBtn");
+    if(editorSaveBtn) editorSaveBtn.addEventListener("click", saveEditorSet);
+    
+    var editorDeleteBtn = id("editorDeleteBtn");
+    if(editorDeleteBtn) editorDeleteBtn.addEventListener("click", deleteEditorSet);
+    
+    var editorCreateSetBtn = id("editorCreateSetBtn");
+    if(editorCreateSetBtn) editorCreateSetBtn.addEventListener("click", createNewSet);
+    
+    var editorAddMemeBtn = id("editorAddMemeBtn");
+    if(editorAddMemeBtn) editorAddMemeBtn.addEventListener("click", editorAddMeme);
+    
+    var editorExportBtn = id("editorExportBtn");
+    if(editorExportBtn) editorExportBtn.addEventListener("click", exportEditorSet);
+    
+    var editorImportBtn = id("editorImportBtn");
+    if(editorImportBtn) editorImportBtn.addEventListener("click", function(){ id("editorImportFile").click(); });
+    
+    var editorImportFile = id("editorImportFile");
+    if(editorImportFile) editorImportFile.addEventListener("change", importEditorSet);
+
+    initEditorTabs();
   }
 
   function bootFromUrl(){
@@ -404,6 +456,7 @@
     els.screenHost.hidden = view !== "host";
     els.screenJoin.hidden = view !== "join";
     els.screenPlayer.hidden = view !== "player";
+    if(els.screenEditor) els.screenEditor.hidden = view !== "editor";
     els.backButton.hidden = view === "home";
     applyDevModeVisibility();
     syncUrl();
@@ -414,8 +467,13 @@
       els.joinError.textContent = "";
     }
     if(view === "settings"){
-      populateSettingsForm(loadSettingsDraft());
+      populateQuestionSetsDropdown().then(function(){
+        populateSettingsForm(loadSettingsDraft());
+      });
       els.hostSettingsStatus.textContent = "";
+    }
+    if(view === "editor"){
+      initEditorView();
     }
     if((view === "host" || view === "player") && state.roomId){
       connectLive();
@@ -827,13 +885,28 @@
     event.preventDefault();
     var snap = state.room;
     if(!snap || !snap.viewer || !snap.viewer.currentAssignment) return;
-    var text = String(els.playerAnswerInput.value || "").trim();
-    if(!text){ return; }
-    var validation = validateAnswerAgainstActiveModifiers(text);
-    if(!validation.ok){
-      showAnswerHint(validation.error, true);
-      return;
+    
+    var text = "";
+    var isMeme = Boolean(snap.viewer.currentAssignment.memeImageUrl);
+    
+    if(isMeme) {
+      var topText = String(id("playerAnswerMemeTop").value || "").trim();
+      var bottomText = String(id("playerAnswerMemeBottom").value || "").trim();
+      if (!topText && !bottomText) {
+        showAnswerHint("Напиши хотя бы один text для мема!", true);
+        return;
+      }
+      text = JSON.stringify({ top: topText, bottom: bottomText });
+    } else {
+      text = String(els.playerAnswerInput.value || "").trim();
+      if(!text){ return; }
+      var validation = validateAnswerAgainstActiveModifiers(text);
+      if(!validation.ok){
+        showAnswerHint(validation.error, true);
+        return;
+      }
     }
+    
     var pairId = snap.viewer.currentAssignment.pairId;
     if(state.pendingSubmit) return;
     state.pendingSubmit = pairId;
@@ -845,7 +918,14 @@
         body: JSON.stringify({clientId: state.clientId, pairId: pairId, text: text})
       });
       klppAudio.answerSubmit();
-      els.playerAnswerInput.value = "";
+      if(isMeme) {
+        id("playerAnswerMemeTop").value = "";
+        id("playerAnswerMemeBottom").value = "";
+        id("playerAnswerMemePreviewTop").textContent = "";
+        id("playerAnswerMemePreviewBottom").textContent = "";
+      } else {
+        els.playerAnswerInput.value = "";
+      }
       showAnswerHint("", false);
     }catch(error){
       els.playerAnswerMeta.textContent = error.message || "Не удалось отправить ответ";
@@ -1189,13 +1269,25 @@
       else prompt = "Игроки пишут ответы на своих вопросах";
       body = "<p class=\"panel-copy\">Каждый игрок отвечает на свои пары. На большом экране результаты появятся, когда все закончат.</p>";
     } else if(state === "vote" && snap.currentVote){
-      var isRev = Boolean(snap.currentVote.isReverse);
-      prompt = isRev ? ("❓ Ответ: " + snap.currentVote.questionText) : snap.currentVote.questionText;
-      body = renderHostVotePair(snap.currentVote, snap, false);
+      var vote = snap.currentVote;
+      if(vote.type === "final_lash" || vote.type === "meme_round"){
+        prompt = vote.type === "meme_round" ? ("🖼️ Мем-раунд: " + vote.questionText) : ("💀 Смертельный бой: " + vote.questionText);
+        body = renderHostFinalVote(vote, snap, false);
+      } else {
+        var isRev = Boolean(snap.currentVote.isReverse);
+        prompt = isRev ? ("❓ Ответ: " + snap.currentVote.questionText) : snap.currentVote.questionText;
+        body = renderHostVotePair(snap.currentVote, snap, false);
+      }
     } else if(state === "vote_result" && snap.currentVote){
-      var isRev = Boolean(snap.currentVote.isReverse);
-      prompt = isRev ? ("❓ Ответ: " + snap.currentVote.questionText) : snap.currentVote.questionText;
-      body = renderHostVotePair(snap.currentVote, snap, true);
+      var vote = snap.currentVote;
+      if(vote.type === "final_lash" || vote.type === "meme_round"){
+        prompt = vote.type === "meme_round" ? ("🖼️ Мем-раунд: " + vote.questionText) : ("💀 Смертельный бой: " + vote.questionText);
+        body = renderHostFinalVote(vote, snap, true);
+      } else {
+        var isRev = Boolean(snap.currentVote.isReverse);
+        prompt = isRev ? ("❓ Ответ: " + snap.currentVote.questionText) : snap.currentVote.questionText;
+        body = renderHostVotePair(snap.currentVote, snap, true);
+      }
     } else if(state === "round_score" && snap.lastRoundResult){
       prompt = snap.lastRoundResult.title || ("Раунд " + snap.lastRoundResult.roundNumber);
       body = renderHostScoreboard(snap.lastRoundResult.scoreboard, snap);
@@ -1276,6 +1368,81 @@
 
   function renderAnonymousAvatarHtml(){
     return '<div class="avatar avatar--sm" style="background:#444;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #111">?</div>';
+  }
+
+  function renderHostFinalVote(vote, snap, showResult) {
+    var answers = showResult && vote.result ? vote.result.answers : vote.answers;
+    var maxVotes = 0;
+    if (showResult && answers.length > 0) {
+      maxVotes = answers[0].voteCount;
+    }
+    
+    var html = '<div class="final-lash-grid">';
+    
+    answers.forEach(function(ans, index){
+      if(ans.missing) return;
+      
+      var isWinner = showResult && maxVotes > 0 && ans.voteCount === maxVotes;
+      var cardClass = "final-lash-card" + (isWinner ? " winner" : "");
+      
+      var avatarHtml = "";
+      var authorName = "";
+      if (showResult) {
+        var player = lookupPlayer(snap, ans.clientId);
+        avatarHtml = renderAvatarHtml(player ? player.avatar : null, "sm");
+        authorName = player ? escapeHtml(player.nickname) : escapeHtml(ans.nickname);
+      } else {
+        avatarHtml = renderAnonymousAvatarHtml();
+        authorName = escapeHtml(ans.nickname);
+      }
+      
+      var contentHtml = "";
+      if (vote.type === "meme_round") {
+        var parsedMeme = {top: "", bottom: ""};
+        try {
+          parsedMeme = JSON.parse(ans.answerText);
+        } catch(e) {
+          parsedMeme = {top: ans.answerText, bottom: ""};
+        }
+        contentHtml = renderMemeContainerHtml(vote.memeImageUrl, parsedMeme.top, parsedMeme.bottom);
+      } else {
+        contentHtml = '<div class="final-lash-text">«' + escapeHtml(ans.answerText) + '»</div>';
+      }
+      
+      var tallyHtml = "";
+      if (showResult) {
+        var votersText = (ans.voters && ans.voters.length > 0) 
+          ? "Голоса: " + ans.voters.map(escapeHtml).join(", ") 
+          : "Нет голосов";
+        
+        tallyHtml = '<div class="final-lash-tally">' +
+          '<span>Голосов: ' + ans.voteCount + '</span>' +
+          '<span style="color:#28a745; font-weight:900;">+' + ans.scoreDelta + '</span>' +
+        '</div>' +
+        '<div class="final-lash-voters">' + votersText + '</div>';
+      }
+      
+      html += '<div class="' + cardClass + '">' +
+        '<div class="final-lash-author">' + avatarHtml + '<span>' + authorName + '</span></div>' +
+        contentHtml +
+        tallyHtml +
+      '</div>';
+    });
+    
+    html += '</div>';
+    
+    if (showResult) {
+      var isLastRound = (snap.roundIndex || 0) >= (snap.settings.roundCount || 5);
+      var doubled = snap.settings.doublePointsLastRound && isLastRound;
+      var ptsPerVote = doubled ? 300 : 150;
+      html += '<p class="panel-copy" style="margin-top:20px; font-size:15px; font-weight:800;">' +
+        'Каждый полученный голос принёс <strong>' + ptsPerVote + ' очков</strong>!' +
+      '</p>';
+    } else {
+      html += '<p class="panel-copy" style="margin-top:20px;">Голосуйте на экранах своих телефонов!</p>';
+    }
+    
+    return html;
   }
 
   function renderHostVoteResultLine(result){
@@ -1624,6 +1791,60 @@
     var viewer = snap.viewer;
     var vote = viewer.vote;
     if(!vote){ els.playerVoteList.innerHTML = ""; return; }
+
+    if(vote.type === "final_lash" || vote.type === "meme_round"){
+      els.playerTitle.textContent = vote.type === "meme_round" ? "Выбери лучший мем!" : "Смертельный бой!";
+      els.playerSubtitle.textContent = vote.questionText;
+      els.playerCtaRow.innerHTML = "";
+      els.playerMessage.hidden = true;
+      
+      var listHtml = "";
+      (vote.answers || []).forEach(function(ans, index){
+        if(ans.missing) return;
+        
+        var isOwn = ans.clientId === state.clientId;
+        var isChosen = vote.chosenClientId === ans.clientId || state.lastChosenVote === ans.clientId;
+        
+        var cardContent = "";
+        if(vote.type === "meme_round"){
+          var parsedMeme = {top: "", bottom: ""};
+          try {
+            parsedMeme = JSON.parse(ans.answerText);
+          } catch(e) {
+            parsedMeme = {top: ans.answerText, bottom: ""};
+          }
+          cardContent = renderMemeContainerHtml(vote.memeImageUrl, parsedMeme.top, parsedMeme.bottom);
+        } else {
+          cardContent = '<p style="font-size: 16px; font-weight: 800; margin: 6px 0;">«' + escapeHtml(ans.answerText) + '»</p>';
+        }
+        
+        var label = "Выбрать";
+        if(isOwn) {
+          label = "Твой ответ";
+        } else if(isChosen) {
+          label = "Твой голос 👍";
+        }
+        
+        listHtml += '<button class="vote-card" type="button" data-target="' + ans.clientId + '"' + 
+          (isChosen ? ' data-chosen="true"' : "") + 
+          (isOwn ? " disabled" : "") + 
+          (isOwn ? ' style="opacity:0.65; border-style:dashed;"' : "") + '>' +
+          '<strong>' + label + '</strong>' +
+          cardContent +
+        '</button>';
+      });
+      
+      els.playerVoteList.innerHTML = listHtml;
+      
+      Array.prototype.forEach.call(els.playerVoteList.querySelectorAll("[data-target]"), function(btn){
+        if(!btn.disabled) {
+          btn.addEventListener("click", function(){
+            submitVote(btn.getAttribute("data-target"));
+          });
+        }
+      });
+      return;
+    }
     var isReverse = Boolean(vote.isReverse);
     if(isReverse){
       els.playerTitle.textContent = "❓ Чей вопрос смешнее?";
@@ -1912,7 +2133,9 @@
       anonymousAnswers: els.settingsAnonymousAnswers && els.settingsAnonymousAnswers.checked,
       doublePointsLastRound: els.settingsDoublePointsLastRound && els.settingsDoublePointsLastRound.checked,
       modifierMode: (els.settingsModifierMode && els.settingsModifierMode.value) || "off",
-      selectedModifiers: state.selectedModifiersDraft.slice()
+      selectedModifiers: state.selectedModifiersDraft.slice(),
+      questionSetId: (els.settingsQuestionSetId && els.settingsQuestionSetId.value) || KLPP_DEFAULT_SETTINGS.questionSetId,
+      finalRoundType: (els.settingsFinalRoundType && els.settingsFinalRoundType.value) || KLPP_DEFAULT_SETTINGS.finalRoundType
     });
   }
 
@@ -1926,6 +2149,8 @@
     if(els.settingsAnonymousAnswers) els.settingsAnonymousAnswers.checked = Boolean(settings.anonymousAnswers);
     if(els.settingsDoublePointsLastRound) els.settingsDoublePointsLastRound.checked = Boolean(settings.doublePointsLastRound);
     if(els.settingsModifierMode) els.settingsModifierMode.value = settings.modifierMode || "off";
+    if(els.settingsQuestionSetId) els.settingsQuestionSetId.value = settings.questionSetId || "default";
+    if(els.settingsFinalRoundType) els.settingsFinalRoundType.value = settings.finalRoundType || "final_lash";
     state.selectedModifiersDraft = (settings.selectedModifiers || []).slice();
     renderModifierChecklist();
   }
@@ -1936,6 +2161,8 @@
     var selected = Array.isArray(settings.selectedModifiers)
       ? settings.selectedModifiers.filter(function(id){ return typeof id === "string" && id.length > 0 && id.length < 40; })
       : [];
+    var finalType = ["final_lash", "meme_round", "random"].indexOf(settings.finalRoundType) !== -1 ? settings.finalRoundType : "final_lash";
+    var qSetId = typeof settings.questionSetId === "string" ? settings.questionSetId : "default";
     return {
       answerSeconds: clamp(Number(settings.answerSeconds || KLPP_DEFAULT_SETTINGS.answerSeconds), 20, 180),
       voteSeconds: clamp(Number(settings.voteSeconds || KLPP_DEFAULT_SETTINGS.voteSeconds), 15, 120),
@@ -1945,7 +2172,9 @@
       anonymousAnswers: Boolean(settings.anonymousAnswers),
       doublePointsLastRound: Boolean(settings.doublePointsLastRound),
       modifierMode: mode,
-      selectedModifiers: selected
+      selectedModifiers: selected,
+      questionSetId: qSetId,
+      finalRoundType: finalType
     };
   }
 
@@ -2121,6 +2350,272 @@
   function clamp(value, min, max){
     value = Number.isFinite(value) ? value : min;
     return Math.max(min, Math.min(max, value));
+  }
+
+  async function populateQuestionSetsDropdown() {
+    if(!els.settingsQuestionSetId) return;
+    try {
+      var res = await api("/api/klpp/question-sets");
+      var sets = res.questionSets || [];
+      var currentVal = els.settingsQuestionSetId.value || "default";
+      els.settingsQuestionSetId.innerHTML = sets.map(function(s){
+        return '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>';
+      }).join("");
+      els.settingsQuestionSetId.value = currentVal;
+    } catch(e) {
+      console.error("Failed to load question sets for dropdown", e);
+    }
+  }
+
+  /* ───── Question Set Editor logic ───── */
+
+  function initEditorTabs() {
+    Array.prototype.forEach.call(document.querySelectorAll(".editor-tab-btn"), function(btn){
+      btn.addEventListener("click", function(){
+        Array.prototype.forEach.call(document.querySelectorAll(".editor-tab-btn"), function(b){ b.classList.remove("active"); });
+        Array.prototype.forEach.call(document.querySelectorAll(".editor-pane"), function(p){ p.classList.remove("active"); });
+        
+        btn.classList.add("active");
+        var tabId = btn.getAttribute("data-tab");
+        state.editorActiveTab = tabId;
+        id("pane-" + tabId).classList.add("active");
+      });
+    });
+  }
+
+  async function initEditorView() {
+    state.editorActiveSetId = state.editorActiveSetId || "default";
+    state.editorActiveTab = "classic";
+    
+    Array.prototype.forEach.call(document.querySelectorAll(".editor-tab-btn"), function(b){ b.classList.remove("active"); });
+    Array.prototype.forEach.call(document.querySelectorAll(".editor-pane"), function(p){ p.classList.remove("active"); });
+    
+    var classicTab = document.querySelector('.editor-tab-btn[data-tab="classic"]');
+    if(classicTab) classicTab.classList.add("active");
+    var classicPane = id("pane-classic");
+    if(classicPane) classicPane.classList.add("active");
+    
+    await loadEditorData();
+  }
+
+  async function loadEditorData() {
+    try {
+      id("editorStatusText").textContent = "Загрузка...";
+      var res = await api("/api/klpp/question-sets");
+      state.editorSets = res.questionSets || [];
+      renderEditorSetsList();
+      
+      var set = state.editorSets.find(function(s){ return s.id === state.editorActiveSetId; });
+      if(!set && state.editorSets.length) {
+        set = state.editorSets[0];
+      }
+      if(set) {
+        loadSetIntoEditor(set);
+      }
+      id("editorStatusText").textContent = "";
+    } catch(e) {
+      id("editorStatusText").textContent = "Ошибка загрузки: " + e.message;
+    }
+  }
+
+  function renderEditorSetsList() {
+    var container = id("editorSetsList");
+    if(!container) return;
+    container.innerHTML = (state.editorSets || []).map(function(s){
+      var active = s.id === state.editorActiveSetId ? " active" : "";
+      return '<button class="editor-set-item' + active + '" type="button" data-id="' + s.id + '">' +
+        '<strong>' + escapeHtml(s.name) + '</strong>' +
+        '<div style="font-size:11px; opacity:0.75; font-weight:700; margin-top:3px;">Вопросов: ' + (s.questions || []).length + ', мемов: ' + (s.memes || []).length + '</div>' +
+      '</button>';
+    }).join("");
+    
+    Array.prototype.forEach.call(container.querySelectorAll(".editor-set-item"), function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-id");
+        state.editorActiveSetId = id;
+        renderEditorSetsList();
+        var set = state.editorSets.find(function(s){ return s.id === id; });
+        if(set) loadSetIntoEditor(set);
+      });
+    });
+  }
+
+  function loadSetIntoEditor(set) {
+    state.editorCurrentSet = clone(set);
+    id("editorTitle").textContent = set.id === "default" ? "Стандартный набор (Только чтение)" : "Редактирование набора";
+    id("editorSetName").value = set.name;
+    id("editorSetDesc").value = set.description;
+    
+    id("editorSetName").disabled = set.id === "default";
+    id("editorSetDesc").disabled = set.id === "default";
+    id("editorDeleteBtn").style.display = set.id === "default" ? "none" : "block";
+
+    id("editorTextClassic").value = (set.questions || []).join("\n");
+    id("editorTextReverse").value = (set.reverseAnswers || []).join("\n");
+    id("editorTextFinal").value = (set.finalQuestions || []).join("\n");
+    
+    renderEditorMemes(set.memes || []);
+  }
+
+  function renderEditorMemes(memes) {
+    var grid = id("editorMemesGrid");
+    if(!grid) return;
+    grid.innerHTML = (memes || []).map(function(m, idx){
+      return '<div class="editor-meme-card" data-index="' + idx + '">' +
+        '<button class="delete-meme-btn" type="button" onclick="window.klppDeleteMeme(' + idx + ')">×</button>' +
+        '<img class="meme-preview" src="' + escapeHtml(m.url) + '" onerror="this.src=\'data:image/svg+xml;utf8,<svg viewBox=\\\'0 0 100 100\\\' xmlns=\\\'http://www.w3.org/2000/svg\\\'> <rect width=\\\'100\\\' height=\\\'100\\\' fill=\\\'%23eee\\\'/> <text x=\\\'50%\\\' y=\\\'50%\\\' dominant-baseline=\\\'middle\\\' text-anchor=\\\'middle\\\' font-size=\\\'10\\\' fill=\\\'%23999\\\'>Ошибка загрузки</text></svg>\'">' +
+        '<label style="display:grid; gap:4px; font-size:11px; text-transform:uppercase; font-weight:900; text-align:left;">Название' +
+          '<input type="text" class="meme-name-input" value="' + escapeHtml(m.name) + '" oninput="window.klppUpdateMeme(' + idx + ', \'name\', this.value)">' +
+        '</label>' +
+        '<label style="display:grid; gap:4px; font-size:11px; text-transform:uppercase; font-weight:900; text-align:left;">Ссылка на картинку' +
+          '<input type="text" class="meme-url-input" value="' + escapeHtml(m.url) + '" oninput="window.klppUpdateMeme(' + idx + ', \'url\', this.value)">' +
+        '</label>' +
+      '</div>';
+    }).join("");
+  }
+
+  window.klppDeleteMeme = function(idx) {
+    if(!state.editorCurrentSet) return;
+    state.editorCurrentSet.memes.splice(idx, 1);
+    renderEditorMemes(state.editorCurrentSet.memes);
+  };
+  
+  window.klppUpdateMeme = function(idx, field, value) {
+    if(!state.editorCurrentSet || !state.editorCurrentSet.memes[idx]) return;
+    state.editorCurrentSet.memes[idx][field] = value;
+    if(field === "url") {
+      var card = document.querySelector('.editor-meme-card[data-index="' + idx + '"]');
+      if(card) {
+        var img = card.querySelector('.meme-preview');
+        if(img) img.src = value;
+      }
+    }
+  };
+
+  function editorAddMeme() {
+    if(!state.editorCurrentSet) return;
+    state.editorCurrentSet.memes = state.editorCurrentSet.memes || [];
+    state.editorCurrentSet.memes.push({ name: "Новый шаблон", url: "/klpp-assets/memes/dog.png" });
+    renderEditorMemes(state.editorCurrentSet.memes);
+  }
+
+  function collectSetFromEditor() {
+    if(!state.editorCurrentSet) return null;
+    var name = String(id("editorSetName").value || "").trim();
+    var desc = String(id("editorSetDesc").value || "").trim();
+    if(!name) {
+      alert("Название набора обязательно!");
+      return null;
+    }
+    
+    var questions = id("editorTextClassic").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+    var reverse = id("editorTextReverse").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+    var finalQs = id("editorTextFinal").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+    
+    state.editorCurrentSet.name = name;
+    state.editorCurrentSet.description = desc;
+    state.editorCurrentSet.questions = questions;
+    state.editorCurrentSet.reverseAnswers = reverse;
+    state.editorCurrentSet.finalQuestions = finalQs;
+    
+    return state.editorCurrentSet;
+  }
+
+  async function saveEditorSet() {
+    var set = collectSetFromEditor();
+    if(!set) return;
+    try {
+      id("editorStatusText").textContent = "Сохранение...";
+      var res = await api("/api/klpp/question-sets", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(set)
+      });
+      state.editorActiveSetId = res.questionSet.id;
+      id("editorStatusText").textContent = "Сохранено!";
+      setTimeout(function(){ id("editorStatusText").textContent = ""; }, 2000);
+      await loadEditorData();
+    } catch(e) {
+      alert("Ошибка сохранения: " + e.message);
+      id("editorStatusText").textContent = "Ошибка";
+    }
+  }
+
+  async function deleteEditorSet() {
+    if(!state.editorActiveSetId || state.editorActiveSetId === "default") return;
+    if(!confirm("Вы уверены, что хотите удалить этот набор? Это действие нельзя отменить.")) return;
+    try {
+      id("editorStatusText").textContent = "Удаление...";
+      await api("/api/klpp/question-sets/" + encodeURIComponent(state.editorActiveSetId), {
+        method: "DELETE"
+      });
+      state.editorActiveSetId = "default";
+      id("editorStatusText").textContent = "Удалено!";
+      setTimeout(function(){ id("editorStatusText").textContent = ""; }, 2000);
+      await loadEditorData();
+    } catch(e) {
+      alert("Ошибка удаления: " + e.message);
+      id("editorStatusText").textContent = "Ошибка";
+    }
+  }
+
+  function createNewSet() {
+    var newSet = {
+      id: "",
+      name: "Новый набор вопросов",
+      description: "Созданный пользователем набор",
+      questions: [],
+      reverseAnswers: [],
+      finalQuestions: [],
+      memes: []
+    };
+    state.editorActiveSetId = "";
+    loadSetIntoEditor(newSet);
+    id("editorSetName").focus();
+  }
+
+  function exportEditorSet() {
+    var set = collectSetFromEditor();
+    if(!set) return;
+    var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(set, null, 2));
+    var dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", "klpp_set_" + set.name.replace(/[^a-zA-Z0-9а-яА-Я]/g, "_") + ".json");
+    dlAnchorElem.click();
+  }
+
+  function importEditorSet(event) {
+    var file = event.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var set = JSON.parse(e.target.result);
+        if(!set.name) {
+          alert("Некорректный JSON: отсутствует название набора (name).");
+          return;
+        }
+        if(confirm("Импортировать как новый набор? (Иначе будет перезаписан текущий активный набор)")) {
+          set.id = "";
+        } else {
+          set.id = state.editorActiveSetId;
+        }
+        loadSetIntoEditor(set);
+        id("editorStatusText").textContent = "JSON импортирован!";
+      } catch(err) {
+        alert("Ошибка разбора JSON: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  }
+
+  function renderMemeContainerHtml(imageUrl, topText, bottomText) {
+    return '<div class="klpp-meme-container">' +
+      '<img class="klpp-meme-image" src="' + escapeHtml(imageUrl) + '">' +
+      (topText ? '<div class="klpp-meme-text top">' + escapeHtml(topText.toUpperCase()) + '</div>' : '') +
+      (bottomText ? '<div class="klpp-meme-text bottom">' + escapeHtml(bottomText.toUpperCase()) + '</div>' : '') +
+    '</div>';
   }
 
   function escapeHtml(value){
