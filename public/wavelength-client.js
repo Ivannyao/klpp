@@ -38,6 +38,8 @@
     setupCreateButton: id("setupCreateButton"),
     setupJoinButton: id("setupJoinButton"),
     setupRoundRow: id("setupRoundRow"),
+    setupNicknameStep: id("setupNicknameStep"),
+    setupNickInput: id("setupNickInput"),
     lobbyRoomCode: id("lobbyRoomCode"),
     lobbyQrImage: id("lobbyQrImage"),
     lobbyStatus: id("lobbyStatus"),
@@ -53,6 +55,10 @@
     playerLobbyTitle: id("playerLobbyTitle"),
     playerLobbySubtitle: id("playerLobbySubtitle"),
     playerLobbyChips: id("playerLobbyChips"),
+    playerLobbyRoomCode: id("playerLobbyRoomCode"),
+    playerLobbyCopyButton: id("playerLobbyCopyButton"),
+    playerLobbyStartButton: id("playerLobbyStartButton"),
+    playerLobbyStartHint: id("playerLobbyStartHint"),
     toast: id("toast")
   };
 
@@ -70,6 +76,8 @@
     els.setupJoinButton.addEventListener("click", function(){ navigate("join"); });
     els.lobbyCopyButton.addEventListener("click", copyJoinLink);
     els.lobbyStartButton.addEventListener("click", startGame);
+    els.playerLobbyCopyButton.addEventListener("click", copyJoinLink);
+    els.playerLobbyStartButton.addEventListener("click", startGame);
     els.joinSubmitButton.addEventListener("click", submitJoin);
     els.joinCodeInput.addEventListener("input", function(){
       els.joinCodeInput.value = sanitizeRoomId(els.joinCodeInput.value);
@@ -152,18 +160,48 @@
         renderSetupForm();
       });
     });
+
+    var showNick = state.settingsDraft.mode === "direct";
+    els.setupNicknameStep.hidden = !showNick;
+    if(showNick && !els.setupNickInput.value && state.nickname){
+      els.setupNickInput.value = state.nickname;
+    }
   }
 
   /* ───── Room create / join ───── */
 
   function createRoom(){
+    var nick = "";
+    if(state.settingsDraft.mode === "direct"){
+      nick = String(els.setupNickInput.value || "").trim();
+      if(!nick){
+        showToast("Введи свой ник, чтобы начать игру.");
+        return;
+      }
+      state.nickname = nick;
+      localStorage.setItem("waveNickname", nick);
+    }
+
     api("/api/wave/rooms", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({settings: state.settingsDraft})})
       .then(function(data){
         state.roomId = data.room.id;
         state.hostKey = data.hostKey || "";
         if(state.hostKey) sessionStorage.setItem("waveHostKey:" + state.roomId, state.hostKey);
         state.room = data.room;
-        navigate("host-lobby");
+
+        if(state.settingsDraft.mode === "direct"){
+          return api("/api/wave/room/" + encodeURIComponent(state.roomId) + "/join", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({clientId: state.clientId, nickname: nick})
+          }).then(function(joinData){
+            state.nickname = joinData.player.nickname;
+            state.room = joinData.room;
+            navigate("player-lobby");
+          });
+        } else {
+          navigate("host-lobby");
+        }
       })
       .catch(function(err){
         showToast("Не получилось создать комнату: " + (err.message || ""));
@@ -254,6 +292,10 @@
 
   function handleSnapshot(snap){
     state.room = snap;
+    if(snap.settings && snap.settings.mode === "direct" && state.view === "host-lobby"){
+      navigate("player-lobby");
+      return;
+    }
     if(state.view === "host-lobby") renderHostLobby(snap);
     else if(state.view === "player-lobby") renderPlayerLobby(snap);
   }
@@ -297,6 +339,24 @@
     } else {
       els.playerLobbySubtitle.textContent = "Комната " + snap.id + " · все на месте, ждём старта от OWNER'а";
     }
+
+    els.playerLobbyRoomCode.textContent = snap.id;
+    if(v.isOwner){
+      els.playerLobbyStartButton.hidden = false;
+      els.playerLobbyStartHint.hidden = false;
+      var canStart = snap.players.length >= minP;
+      els.playerLobbyStartButton.disabled = !canStart;
+      if(canStart){
+        els.playerLobbyStartHint.textContent = "Жми «Начать игру», когда все на местах.";
+      } else {
+        var need = minP - have;
+        els.playerLobbyStartHint.textContent = "Нужно ещё " + need + " " + (need === 1 ? "игрок" : (need < 5 ? "игрока" : "игроков")) + ".";
+      }
+    } else {
+      els.playerLobbyStartButton.hidden = true;
+      els.playerLobbyStartHint.hidden = true;
+    }
+
     els.playerLobbyChips.innerHTML = snap.players.map(function(p){
       var initial = (p.nickname || "?").charAt(0).toUpperCase();
       var youTag = p.clientId === v.clientId ? ' style="background:rgba(34,225,255,.15);border:1px solid rgba(34,225,255,.3)"' : '';

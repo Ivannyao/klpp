@@ -183,6 +183,13 @@ body::after{
         </div>
       </div>
 
+      <div class="setup-step" id="setupNicknameStep" hidden>
+        <div class="setup-step__label">Твой ник</div>
+        <div class="input-stack" style="margin-top:0">
+          <input id="setupNickInput" maxlength="32" placeholder="Например, Лысый Шутник" autocomplete="nickname">
+        </div>
+      </div>
+
       <div class="setup-step">
         <div class="setup-step__label">Количество раундов</div>
         <div class="round-pill-row" id="setupRoundRow"></div>
@@ -254,6 +261,17 @@ body::after{
     <div class="setup-card" style="max-width:420px;text-align:center">
       <h2 id="playerLobbyTitle">Ждём…</h2>
       <p id="playerLobbySubtitle" style="color:var(--ink-dim);font-size:16px;margin:6px 0 18px"></p>
+      
+      <div id="playerLobbyActions" style="margin-bottom:20px;padding:16px;background:rgba(0,0,0,0.2);border-radius:14px;border:1px solid rgba(255,255,255,0.05)">
+        <div style="font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--neon-cyan);margin-bottom:4px">Код комнаты</div>
+        <div id="playerLobbyRoomCode" style="font-family:'Lobster',cursive;font-size:36px;letter-spacing:.08em;margin-bottom:12px;background:linear-gradient(180deg,var(--neon-cyan),var(--neon-pink));-webkit-background-clip:text;background-clip:text;color:transparent">----</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn-ghost" id="playerLobbyCopyButton" type="button" style="width:100%">📋 Копировать ссылку</button>
+          <button class="btn-cta" id="playerLobbyStartButton" type="button" style="width:100%;font-size:16px;padding:12px" disabled hidden>Начать игру</button>
+          <div id="playerLobbyStartHint" style="font-size:12px;color:var(--ink-dim)" hidden></div>
+        </div>
+      </div>
+
       <div id="playerLobbyChips" style="display:grid;gap:8px"></div>
     </div>
   </section>
