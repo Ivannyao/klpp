@@ -123,10 +123,29 @@ body::after{
 .player-chip__owner{font-size:10px;font-weight:900;letter-spacing:.16em;padding:3px 8px;border-radius:999px;background:var(--neon-yellow);color:#0a0e1f}
 .lobby-status{margin-top:14px;padding:14px;border-radius:12px;background:rgba(34,225,255,.08);border:1px solid rgba(34,225,255,.2);font-size:14px;color:var(--ink-dim)}
 
-/* ===== PLAY placeholder ===== */
-.play-placeholder{text-align:center;padding:40px}
-.play-placeholder h2{font-family:"Lobster",cursive;font-size:48px;color:var(--neon-cyan);margin:0 0 10px}
-.play-placeholder p{color:var(--ink-dim);font-size:18px;max-width:520px;margin:0 auto}
+/* Gameplay Styles */
+.game-info{font-size:14px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;color:var(--neon-cyan);margin-bottom:10px}
+.game-timer{font-size:32px;font-family:"Lobster",cursive;color:var(--neon-pink);margin-bottom:20px;text-shadow:0 0 10px rgba(255,61,138,0.5)}
+.opposites-row{display:flex;justify-content:space-between;width:100%;max-width:400px;margin:15px auto;font-weight:900;font-size:18px;letter-spacing:0.05em}
+.opposite-label{padding:8px 16px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)}
+.opposite-left{color:var(--neon-cyan);text-shadow:0 0 8px rgba(34,225,255,0.3)}
+.opposite-right{color:var(--neon-pink);text-shadow:0 0 8px rgba(255,61,138,0.3)}
+.clue-bubble{background:linear-gradient(135deg,rgba(34,225,255,0.1),rgba(255,61,138,0.1));border:2px solid var(--neon-cyan);border-radius:24px;padding:20px 30px;font-size:24px;font-weight:900;color:#fff;margin:20px auto;max-width:400px;box-shadow:0 0 20px rgba(34,225,255,0.25);animation:float-bubble 3s ease-in-out infinite alternate}
+@keyframes float-bubble{0%{transform:translateY(0)}100%{transform:translateY(-6px)}}
+.guess-slider-wrap{width:100%;max-width:400px;margin:20px auto}
+.custom-range{width:100%;-webkit-appearance:none;background:rgba(255,255,255,0.1);height:8px;border-radius:999px;outline:none}
+.custom-range::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-pink));cursor:pointer;box-shadow:0 0 10px rgba(34,225,255,0.8);transition:transform 0.1s}
+.custom-range::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.podium-container{display:flex;align-items:flex-end;justify-content:center;gap:15px;margin:40px 0}
+.podium-step{display:flex;flex-direction:column;align-items:center;width:90px;font-weight:700}
+.podium-bar{width:100%;border-radius:12px 12px 0 0;box-shadow:0 4px 20px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#0a0e1f}
+.podium-1{height:120px;background:linear-gradient(to top, #ffd447, #ffe285);box-shadow:0 0 25px rgba(255,212,71,0.4)}
+.podium-2{height:90px;background:linear-gradient(to top, #b0b0b0, #d3d3d3)}
+.podium-3{height:60px;background:linear-gradient(to top, #cd7f32, #e59866)}
+.player-list-compact{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:20px}
+.player-chip-sm{padding:6px 12px;border-radius:10px;background:rgba(255,255,255,0.06);font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,0.1)}
+.player-chip-sm.done{border-color:var(--neon-cyan);background:rgba(34,225,255,0.1)}
+.player-chip-sm.psychic{border-color:var(--neon-yellow);background:rgba(255,212,71,0.1)}
 
 /* ===== Toast ===== */
 .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(80px);background:var(--card-hi);color:#fff;padding:14px 22px;border-radius:14px;box-shadow:0 12px 40px var(--shadow);z-index:200;font-weight:700;font-size:14px;opacity:0;transition:transform .25s ease,opacity .25s ease;pointer-events:none;max-width:90vw}
@@ -276,11 +295,171 @@ body::after{
     </div>
   </section>
 
-  <!-- PLAY (placeholder until next iteration) -->
-  <section class="screen" id="screenPlay" hidden>
-    <div class="play-placeholder">
-      <h2>Игра скоро начнётся</h2>
-      <p>Геймплейный экран будет реализован в следующей итерации. Сейчас работают: меню, настройки, лобби, синхронизация игроков через SSE.</p>
+  <!-- HOST PLAY -->
+  <section class="screen" id="screenHostPlay" hidden>
+    <div class="setup-card" style="width:min(720px,96vw);text-align:center;padding:30px 24px">
+      <div class="game-info" id="hostRoundIndex">Раунд 1 из 5</div>
+      <h2 id="hostPhaseTitle" style="font-family:'Lobster',cursive;font-size:32px;margin:5px 0 15px">Ход загадывающего</h2>
+      <div class="game-timer" id="hostTimer">75</div>
+
+      <!-- Main Host SVG Dial -->
+      <div style="position:relative;margin:20px auto;max-width:400px">
+        <svg id="hostDialSvg" viewBox="0 0 240 140" style="width:100%;overflow:visible">
+          <!-- Dial Track -->
+          <path d="M 20 120 A 100 100 0 0 1 220 120" stroke="rgba(255,255,255,0.12)" stroke-width="20" fill="none" stroke-linecap="round" />
+          
+          <!-- Target wedges (revealed later) -->
+          <g id="hostTargetWedges" hidden>
+            <path id="hostWedge2" d="" fill="var(--neon-pink)" opacity="0.3" />
+            <path id="hostWedge3" d="" fill="var(--neon-yellow)" opacity="0.6" />
+            <path id="hostWedge4" d="" fill="var(--neon-cyan)" />
+            <line id="hostTargetLine" x1="120" y1="120" x2="120" y2="20" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-dasharray="3,3" />
+          </g>
+          
+          <!-- Guess markers group (revealed later) -->
+          <g id="hostGuessesGroup"></g>
+          
+          <!-- Center hub -->
+          <circle cx="120" cy="120" r="8" fill="var(--bg-light)" stroke="rgba(255,255,255,0.3)" stroke-width="2" />
+        </svg>
+      </div>
+
+      <!-- Opposites labels -->
+      <div class="opposites-row">
+        <div class="opposite-label opposite-left" id="hostOppositeLeft">Лево</div>
+        <div class="opposite-label opposite-right" id="hostOppositeRight">Право</div>
+      </div>
+
+      <!-- Speech bubble for clue -->
+      <div class="clue-bubble" id="hostClueBubble" hidden>
+        Подсказка: <strong id="hostClueText">?</strong>
+      </div>
+
+      <!-- Guess status list of players -->
+      <div class="player-list-compact" id="hostGuessStatusList"></div>
+    </div>
+  </section>
+
+  <!-- PLAYER PLAY -->
+  <section class="screen" id="screenPlayerPlay" hidden>
+    <div class="setup-card" style="max-width:450px;text-align:center;padding:24px 20px">
+      <div class="game-info" id="playerRoundIndex">Раунд 1 из 5</div>
+      <div class="game-timer" id="playerTimer" style="margin-bottom:10px">75</div>
+
+      <!-- 1. PSYCHIC VIEW -->
+      <div id="playerViewPsychic" hidden>
+        <h3 style="font-family:'Lobster',cursive;font-size:24px;color:var(--neon-yellow);margin:0 0 12px">Ты загадываешь!</h3>
+        <p style="font-size:14px;color:var(--ink-dim);margin:0 0 15px">Твоя цель на спектре выделена цветом. Придумай подсказку, чтобы направить команду.</p>
+
+        <!-- Psychic mini dial showing target -->
+        <div style="position:relative;margin:10px auto;max-width:240px">
+          <svg id="psychicDialSvg" viewBox="0 0 240 140" style="width:100%;overflow:visible">
+            <path d="M 20 120 A 100 100 0 0 1 220 120" stroke="rgba(255,255,255,0.1)" stroke-width="20" fill="none" stroke-linecap="round" />
+            <path id="psychicWedge2" d="" fill="var(--neon-pink)" opacity="0.3" />
+            <path id="psychicWedge3" d="" fill="var(--neon-yellow)" opacity="0.6" />
+            <path id="psychicWedge4" d="" fill="var(--neon-cyan)" />
+            <line id="psychicTargetLine" x1="120" y1="120" x2="120" y2="20" stroke="#fff" stroke-width="2.5" stroke-linecap="round" />
+            <circle cx="120" cy="120" r="8" fill="var(--bg-light)" stroke="rgba(255,255,255,0.3)" stroke-width="2" />
+          </svg>
+        </div>
+
+        <!-- Custom Opposites inputs (if topicMode is player_creates) -->
+        <div id="psychicCustomOppositesBlock" hidden style="margin-bottom:15px">
+          <div class="input-stack">
+            <label>Левая сторона спектра
+              <input id="psychicCustomOppositeLeft" placeholder="Например, Холодно" maxlength="30">
+            </label>
+            <label>Правая сторона спектра
+              <input id="psychicCustomOppositeRight" placeholder="Например, Горячо" maxlength="30">
+            </label>
+          </div>
+        </div>
+
+        <div id="psychicOppositesDisplay" class="opposites-row" style="margin-top:5px;margin-bottom:15px">
+          <div class="opposite-label opposite-left" id="psychicOppositeLeft">Лево</div>
+          <div class="opposite-label opposite-right" id="psychicOppositeRight">Право</div>
+        </div>
+
+        <div class="input-stack" style="margin-bottom:15px">
+          <label>Твоя подсказка
+            <input id="psychicClueInput" placeholder="Введи подсказку..." maxlength="100">
+          </label>
+        </div>
+        <button class="btn-cta" id="psychicSubmitButton" type="button" style="width:100%">Отправить подсказку</button>
+      </div>
+
+      <!-- 2. GUESSER VIEW -->
+      <div id="playerViewGuesser" hidden>
+        <h3 style="font-family:'Lobster',cursive;font-size:24px;color:var(--neon-cyan);margin:0 0 12px">Время угадывать!</h3>
+        
+        <!-- Speech bubble showing Psychic's clue -->
+        <div class="clue-bubble" style="margin-top:10px;margin-bottom:15px;padding:12px 20px;font-size:18px">
+          Подсказка: <strong id="guesserClueText">?</strong>
+        </div>
+
+        <!-- Guesser mini dial showing their pointer -->
+        <div style="position:relative;margin:10px auto;max-width:240px">
+          <svg id="guesserDialSvg" viewBox="0 0 240 140" style="width:100%;overflow:visible">
+            <path d="M 20 120 A 100 100 0 0 1 220 120" stroke="rgba(255,255,255,0.1)" stroke-width="20" fill="none" stroke-linecap="round" />
+            
+            <!-- Wedges revealed on reveal state -->
+            <g id="guesserTargetWedges" hidden>
+              <path id="guesserWedge2" d="" fill="var(--neon-pink)" opacity="0.3" />
+              <path id="guesserWedge3" d="" fill="var(--neon-yellow)" opacity="0.6" />
+              <path id="guesserWedge4" d="" fill="var(--neon-cyan)" />
+              <line id="guesserTargetLine" x1="120" y1="120" x2="120" y2="20" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-dasharray="3,3" />
+            </g>
+
+            <line id="guesserPointer" x1="120" y1="120" x2="120" y2="20" stroke="var(--neon-cyan)" stroke-width="4" stroke-linecap="round" />
+            <circle cx="120" cy="120" r="8" fill="var(--bg-light)" stroke="var(--neon-cyan)" stroke-width="2" />
+          </svg>
+        </div>
+
+        <div class="opposites-row" style="margin-top:5px;margin-bottom:15px">
+          <div class="opposite-label opposite-left" id="guesserOppositeLeft">Лево</div>
+          <div class="opposite-label opposite-right" id="guesserOppositeRight">Право</div>
+        </div>
+
+        <div id="guesserControlsBlock">
+          <div class="guess-slider-wrap">
+            <input type="range" class="custom-range" id="guesserGuessSlider" min="0" max="100" value="50">
+            <div style="font-size:13px;font-weight:900;margin-top:8px;color:var(--neon-cyan)">Значение: <span id="guesserGuessVal">50</span>%</div>
+          </div>
+          <button class="btn-cta" id="guesserSubmitButton" type="button" style="width:100%;margin-top:10px">Подтвердить выбор</button>
+        </div>
+
+        <div id="guesserSubmittedMessage" hidden style="margin-top:20px;padding:12px;background:rgba(34,225,255,0.08);border:1px solid rgba(34,225,255,0.2);border-radius:12px;color:var(--ink-dim)">
+          Выбор сделан! Ждём остальных игроков...
+        </div>
+      </div>
+
+      <!-- 3. GENERIC WAITING / REVEAL SCREEN FOR PLAYERS -->
+      <div id="playerViewGenericWaiting" hidden style="margin-top:20px">
+        <h3 style="font-family:'Lobster',cursive;font-size:24px;color:var(--neon-pink)" id="playerGenericWaitingTitle">Ждём...</h3>
+        <p id="playerGenericWaitingSubtitle" style="color:var(--ink-dim);font-size:15px"></p>
+        
+        <!-- List of players done guessing -->
+        <div class="player-list-compact" id="playerGenericWaitingList" style="margin-top:20px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINISHED -->
+  <section class="screen" id="screenFinished" hidden>
+    <div class="setup-card" style="max-width:450px;text-align:center;padding:32px 20px">
+      <h2 style="font-family:'Lobster',cursive;font-size:40px;color:var(--neon-yellow);margin:0 0 10px">Игра Завершена!</h2>
+      <p style="color:var(--ink-dim);font-size:16px;margin:0 0 20px">Результаты финального зачёта:</p>
+
+      <!-- Podium visuals -->
+      <div class="podium-container" id="finishedPodium" style="min-height:160px">
+        <!-- Will be filled by client JS -->
+      </div>
+
+      <!-- Scrollable rankings list -->
+      <div id="finishedRankingsList" style="display:grid;gap:8px;margin-bottom:28px"></div>
+
+      <button class="btn-cta" id="finishedRestartButton" type="button" style="width:100%" hidden>Играть снова</button>
+      <div id="finishedRestartHint" style="font-size:13px;color:var(--ink-dim);margin-top:10px" hidden>Ждём, пока OWNER перезапустит лобби.</div>
     </div>
   </section>
 </main>

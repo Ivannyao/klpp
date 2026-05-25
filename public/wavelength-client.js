@@ -82,8 +82,19 @@
     els.joinCodeInput.addEventListener("input", function(){
       els.joinCodeInput.value = sanitizeRoomId(els.joinCodeInput.value);
     });
+    
+    id("psychicSubmitButton").addEventListener("click", submitClue);
+    id("guesserSubmitButton").addEventListener("click", submitGuess);
+    id("finishedRestartButton").addEventListener("click", restartGame);
+    
+    id("guesserGuessSlider").addEventListener("input", function(){
+      var val = this.value;
+      id("guesserGuessVal").textContent = val;
+      setDialPointer("guesserPointer", val, 100);
+    });
+
     document.addEventListener("visibilitychange", function(){
-      if(state.view === "host-lobby" || state.view === "player-lobby"){
+      if(["host-lobby", "player-lobby", "host-play", "player-play", "finished"].indexOf(state.view) !== -1){
         if(document.hidden) stopPolling(); else connectLive();
       }
     });
@@ -102,13 +113,17 @@
   function navigate(view){
     teardownLive();
     state.view = view;
-    [els.screenHome, els.screenSetup, els.screenHostLobby, els.screenJoin, els.screenPlayerLobby, els.screenPlay].forEach(function(s){ s.hidden = true; });
+    [els.screenHome, els.screenSetup, els.screenHostLobby, els.screenJoin, els.screenPlayerLobby, els.screenHostPlay, els.screenPlayerPlay, els.screenFinished].forEach(function(s){
+      if(s) s.hidden = true;
+    });
     if(view === "home") els.screenHome.hidden = false;
     else if(view === "setup") els.screenSetup.hidden = false;
     else if(view === "host-lobby"){ els.screenHostLobby.hidden = false; if(state.roomId) connectLive(); }
     else if(view === "join") els.screenJoin.hidden = false;
     else if(view === "player-lobby"){ els.screenPlayerLobby.hidden = false; if(state.roomId) connectLive(); }
-    else if(view === "play") els.screenPlay.hidden = false;
+    else if(view === "host-play"){ els.screenHostPlay.hidden = false; if(state.roomId) connectLive(); }
+    else if(view === "player-play"){ els.screenPlayerPlay.hidden = false; if(state.roomId) connectLive(); }
+    else if(view === "finished"){ els.screenFinished.hidden = false; if(state.roomId) connectLive(); }
     syncUrl();
   }
 
@@ -116,10 +131,12 @@
     var u = "/wavelength";
     if(state.view !== "home"){
       var q = new URLSearchParams();
-      if(state.view === "host-lobby"){ q.set("view","host"); if(state.roomId) q.set("room", state.roomId); }
-      else if(state.view === "player-lobby"){ q.set("view","player"); if(state.roomId) q.set("room", state.roomId); }
+      if(state.view === "host-lobby" || state.view === "host-play"){ q.set("view","host"); if(state.roomId) q.set("room", state.roomId); }
+      else if(state.view === "player-lobby" || state.view === "player-play" || state.view === "finished"){ q.set("view","player"); if(state.roomId) q.set("room", state.roomId); }
       else if(state.view === "join") q.set("view","join");
-      if(state.view !== "setup" && state.view !== "play"){
+      
+      var skipSync = state.view === "setup";
+      if(!skipSync){
         u += "?" + q.toString();
       }
     }
@@ -229,8 +246,67 @@
   }
 
   function startGame(){
-    // Iteration 1: start is a no-op (no gameplay yet). Show toast.
-    showToast("Геймплей будет в следующей итерации. Лобби уже работает 🎉");
+    var body = {clientId: state.clientId, hostKey: state.hostKey};
+    api("/api/wave/room/" + encodeURIComponent(state.roomId) + "/start", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    }).then(function(data){
+      state.room = data.room;
+    }).catch(function(err){
+      showToast("Не удалось запустить игру: " + (err.message || ""));
+    });
+  }
+
+  function submitClue(){
+    var clue = String(id("psychicClueInput").value || "").trim();
+    if(!clue){ showToast("Введи подсказку."); return; }
+    
+    var body = {clientId: state.clientId, clue: clue};
+    if(state.room.settings.topicMode === "player_creates"){
+      var left = String(id("psychicCustomOppositeLeft").value || "").trim();
+      var right = String(id("psychicCustomOppositeRight").value || "").trim();
+      if(!left || !right){ showToast("Заполни стороны спектра."); return; }
+      body.left = left;
+      body.right = right;
+    }
+    
+    api("/api/wave/room/" + encodeURIComponent(state.roomId) + "/submit-clue", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    }).then(function(){
+      id("psychicClueInput").value = "";
+      id("psychicCustomOppositeLeft").value = "";
+      id("psychicCustomOppositeRight").value = "";
+    }).catch(function(err){
+      showToast("Ошибка: " + (err.message || ""));
+    });
+  }
+
+  function submitGuess(){
+    var val = Number(id("guesserGuessSlider").value);
+    api("/api/wave/room/" + encodeURIComponent(state.roomId) + "/submit-guess", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({clientId: state.clientId, value: val})
+    }).then(function(){
+      id("guesserControlsBlock").hidden = true;
+      id("guesserSubmittedMessage").hidden = false;
+    }).catch(function(err){
+      showToast("Ошибка: " + (err.message || ""));
+    });
+  }
+
+  function restartGame(){
+    var body = {clientId: state.clientId, hostKey: state.hostKey};
+    api("/api/wave/room/" + encodeURIComponent(state.roomId) + "/restart", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    }).catch(function(err){
+      showToast("Не удалось сбросить игру: " + (err.message || ""));
+    });
   }
 
   /* ───── SSE + render ───── */
@@ -238,9 +314,7 @@
   function connectLive(){
     teardownLive();
     if(document.hidden || !state.roomId) return;
-    // 1) Immediate fetch so UI doesn't sit on placeholders
     fetchRoomOnce();
-    // 2) SSE for live updates
     if(typeof EventSource !== "undefined"){
       try {
         var url = "/api/wave/room/" + encodeURIComponent(state.roomId) + "/events?clientId=" + encodeURIComponent(state.clientId);
@@ -283,7 +357,7 @@
     api("/api/wave/room/" + encodeURIComponent(state.roomId) + "?clientId=" + encodeURIComponent(state.clientId))
       .then(function(data){ if(data && data.room) handleSnapshot(data.room); })
       .catch(function(err){
-        if(err && err.status === 404 && state.view === "player-lobby"){
+        if(err && err.status === 404 && (state.view === "player-lobby" || state.view === "player-play")){
           showToast("Комната закрылась. Введи код заново.");
           navigate("join");
         }
@@ -292,12 +366,39 @@
 
   function handleSnapshot(snap){
     state.room = snap;
+    
+    if(snap.state !== "lobby"){
+      if(snap.state === "finished"){
+        if(state.view !== "finished") navigate("finished");
+      } else {
+        if(state.view === "host-lobby" || state.view === "host-play"){
+          if(state.view !== "host-play") navigate("host-play");
+        } else if(state.view === "player-lobby" || state.view === "player-play"){
+          if(state.view !== "player-play") navigate("player-play");
+        }
+      }
+    } else {
+      if(state.view === "host-play" || state.view === "finished"){
+        navigate("host-lobby");
+      } else if(state.view === "player-play" || state.view === "finished"){
+        navigate("player-lobby");
+      }
+    }
+
+    if(snap.settings && snap.settings.mode === "direct" && state.view === "host-play"){
+      navigate("player-play");
+      return;
+    }
     if(snap.settings && snap.settings.mode === "direct" && state.view === "host-lobby"){
       navigate("player-lobby");
       return;
     }
+    
     if(state.view === "host-lobby") renderHostLobby(snap);
     else if(state.view === "player-lobby") renderPlayerLobby(snap);
+    else if(state.view === "host-play") renderHostPlay(snap);
+    else if(state.view === "player-play") renderPlayerPlay(snap);
+    else if(state.view === "finished") renderFinished(snap);
   }
 
   function renderHostLobby(snap){
@@ -368,6 +469,270 @@
     }).join("");
   }
 
+  function renderHostPlay(snap){
+    id("hostRoundIndex").textContent = "Раунд " + (snap.roundIndex + 1) + " из " + snap.settings.roundCount;
+    id("hostTimer").textContent = snap.phaseTimerRemaining;
+    
+    var cr = snap.currentRound || {};
+    id("hostOppositeLeft").textContent = cr.opposites ? cr.opposites[0] : "Лево";
+    id("hostOppositeRight").textContent = cr.opposites ? cr.opposites[1] : "Право";
+    
+    var title = "";
+    if(snap.state === "round_intro") title = "Раунд " + (snap.roundIndex + 1) + " · Встречайте!";
+    else if(snap.state === "clue_input") title = "Ход загадывающего (" + (cr.psychicNickname || "") + ")";
+    else if(snap.state === "guess") title = "Время угадывать!";
+    else if(snap.state === "reveal") title = "Раскрытие спектра!";
+    else if(snap.state === "round_score") title = "Счёт раунда!";
+    id("hostPhaseTitle").textContent = title;
+    
+    var bubble = id("hostClueBubble");
+    if(snap.state !== "round_intro" && snap.state !== "clue_input" && cr.clue){
+      bubble.removeAttribute("hidden");
+      id("hostClueText").textContent = cr.clue;
+    } else {
+      bubble.setAttribute("hidden", "true");
+    }
+    
+    var wedges = id("hostTargetWedges");
+    var isReveal = ["reveal", "round_score"].indexOf(snap.state) !== -1;
+    if(isReveal && cr.targetCenter !== null){
+      wedges.removeAttribute("hidden");
+      id("hostWedge2").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 24));
+      id("hostWedge3").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 16));
+      id("hostWedge4").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 4));
+      setDialPointer("hostTargetLine", cr.targetCenter, 100);
+    } else {
+      wedges.setAttribute("hidden", "true");
+    }
+    
+    var group = id("hostGuessesGroup");
+    group.innerHTML = "";
+    if(isReveal){
+      snap.players.forEach(function(p){
+        if(p.clientId === cr.psychicClientId) return;
+        var val = cr.guesses[p.clientId];
+        if(val === undefined) return;
+        
+        var rad = Math.PI * (1 - val / 100);
+        var x = 120 + 95 * Math.cos(rad);
+        var y = 120 - 95 * Math.sin(rad);
+        
+        var dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        dot.setAttribute("cx", x);
+        dot.setAttribute("cy", y);
+        dot.setAttribute("r", "5");
+        dot.setAttribute("fill", "var(--neon-cyan)");
+        dot.setAttribute("stroke", "#fff");
+        dot.setAttribute("stroke-width", "1.5");
+        group.appendChild(dot);
+        
+        var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        txt.setAttribute("x", x);
+        txt.setAttribute("y", y - 8);
+        txt.setAttribute("text-anchor", "middle");
+        txt.setAttribute("fill", "#fff");
+        txt.setAttribute("font-size", "9px");
+        txt.setAttribute("font-weight", "900");
+        txt.textContent = (p.nickname || "?").slice(0, 3).toUpperCase();
+        group.appendChild(txt);
+      });
+    }
+    
+    id("hostGuessStatusList").innerHTML = snap.players.map(function(p){
+      var isPsy = p.clientId === cr.psychicClientId;
+      var hasG = cr.hasGuessed && cr.hasGuessed[p.clientId];
+      var cls = "player-chip-sm" + (isPsy ? " psychic" : (hasG ? " done" : ""));
+      var tag = isPsy ? " 🔮 Психик" : (hasG ? " ✅ Готов" : " ⏳ Думает");
+      return '<div class="' + cls + '">' + esc(p.nickname) + tag + '</div>';
+    }).join("");
+  }
+
+  function renderPlayerPlay(snap){
+    id("playerRoundIndex").textContent = "Раунд " + (snap.roundIndex + 1) + " из " + snap.settings.roundCount;
+    id("playerTimer").textContent = snap.phaseTimerRemaining;
+    
+    var cr = snap.currentRound || {};
+    var isPsychic = snap.viewer.clientId === cr.psychicClientId;
+    
+    var divPsychic = id("playerViewPsychic");
+    var divGuesser = id("playerViewGuesser");
+    var divWaiting = id("playerViewGenericWaiting");
+    
+    divPsychic.hidden = true;
+    divGuesser.hidden = true;
+    divWaiting.hidden = true;
+    
+    if(snap.state === "round_intro"){
+      divWaiting.hidden = false;
+      id("playerGenericWaitingTitle").textContent = "Приготовьтесь!";
+      id("playerGenericWaitingSubtitle").textContent = isPsychic 
+        ? "В этом раунде ТЫ загадываешь! Готовься увидеть спектр."
+        : "Загадывает " + cr.psychicNickname + ". Ждём его подсказку.";
+      id("playerGenericWaitingList").innerHTML = "";
+    }
+    else if(snap.state === "clue_input"){
+      if(isPsychic){
+        divPsychic.hidden = false;
+        id("psychicWedge2").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 24));
+        id("psychicWedge3").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 16));
+        id("psychicWedge4").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 4));
+        setDialPointer("psychicTargetLine", cr.targetCenter, 100);
+        
+        var customBlock = id("psychicCustomOppositesBlock");
+        var oppositesDisplay = id("psychicOppositesDisplay");
+        if(snap.settings.topicMode === "player_creates"){
+          customBlock.hidden = false;
+          oppositesDisplay.hidden = true;
+        } else {
+          customBlock.hidden = true;
+          oppositesDisplay.hidden = false;
+          id("psychicOppositeLeft").textContent = cr.opposites[0];
+          id("psychicOppositeRight").textContent = cr.opposites[1];
+        }
+      } else {
+        divWaiting.hidden = false;
+        id("playerGenericWaitingTitle").textContent = "Загадыватель думает";
+        id("playerGenericWaitingSubtitle").textContent = cr.psychicNickname + " придумывает подсказку для спектра...";
+        id("playerGenericWaitingList").innerHTML = "";
+      }
+    }
+    else if(snap.state === "guess"){
+      if(isPsychic){
+        divWaiting.hidden = false;
+        id("playerGenericWaitingTitle").textContent = "Команда думает";
+        id("playerGenericWaitingSubtitle").textContent = "Твоя подсказка: «" + cr.clue + "». Ждём догадки команды.";
+        renderGuessStatusList(snap, cr);
+      } else {
+        var myGuess = cr.guesses[snap.viewer.clientId];
+        if(myGuess !== undefined){
+          divWaiting.hidden = false;
+          id("playerGenericWaitingTitle").textContent = "Выбор сделан";
+          id("playerGenericWaitingSubtitle").textContent = "Твоя догадка: " + myGuess + "%. Ждём остальных игроков.";
+          renderGuessStatusList(snap, cr);
+        } else {
+          divGuesser.hidden = false;
+          id("guesserControlsBlock").hidden = false;
+          id("guesserSubmittedMessage").hidden = true;
+          id("guesserClueText").textContent = cr.clue;
+          id("guesserOppositeLeft").textContent = cr.opposites[0];
+          id("guesserOppositeRight").textContent = cr.opposites[1];
+          id("guesserTargetWedges").setAttribute("hidden", "true");
+          
+          var slider = id("guesserGuessSlider");
+          id("guesserGuessVal").textContent = slider.value;
+          setDialPointer("guesserPointer", slider.value, 100);
+        }
+      }
+    }
+    else if(snap.state === "reveal"){
+      divGuesser.hidden = false;
+      id("guesserControlsBlock").hidden = true;
+      id("guesserSubmittedMessage").hidden = true;
+      id("guesserClueText").textContent = cr.clue;
+      id("guesserOppositeLeft").textContent = cr.opposites[0];
+      id("guesserOppositeRight").textContent = cr.opposites[1];
+      
+      var gWedges = id("guesserTargetWedges");
+      gWedges.removeAttribute("hidden");
+      id("guesserWedge2").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 24));
+      id("guesserWedge3").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 16));
+      id("guesserWedge4").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 4));
+      setDialPointer("guesserTargetLine", cr.targetCenter, 100);
+      
+      var finalGuess = isPsychic ? 50 : (cr.guesses[snap.viewer.clientId] || 50);
+      setDialPointer("guesserPointer", finalGuess, 100);
+    }
+    else if(snap.state === "round_score"){
+      divWaiting.hidden = false;
+      id("playerGenericWaitingTitle").textContent = "Счёт раунда";
+      
+      var scoresHtml = snap.players.map(function(p){
+        var pts = cr.roundScores ? cr.roundScores[p.clientId] : 0;
+        var diffLabel = "";
+        if(p.clientId !== cr.psychicClientId){
+          var g = cr.guesses[p.clientId];
+          diffLabel = g !== undefined ? " (" + g + "%)" : " (нет ответа)";
+        } else {
+          diffLabel = " (Психик)";
+        }
+        return '<div class="player-chip">' +
+          '<div class="player-chip__avatar">' + p.nickname.charAt(0).toUpperCase() + '</div>' +
+          '<div class="player-chip__name">' + esc(p.nickname) + diffLabel + '</div>' +
+          '<div class="player-chip__owner" style="background:var(--neon-cyan)">+' + pts + '</div>' +
+        '</div>';
+      }).join("");
+      
+      id("playerGenericWaitingSubtitle").textContent = "Результаты набора очков в этом раунде:";
+      id("playerGenericWaitingList").innerHTML = '<div style="display:grid;gap:8px;width:100%">' + scoresHtml + '</div>';
+    }
+  }
+
+  function renderGuessStatusList(snap, cr){
+    id("playerGenericWaitingList").innerHTML = snap.players.map(function(p){
+      var isPsy = p.clientId === cr.psychicClientId;
+      var hasG = cr.hasGuessed && cr.hasGuessed[p.clientId];
+      var cls = "player-chip-sm" + (isPsy ? " psychic" : (hasG ? " done" : ""));
+      var tag = isPsy ? " 🔮 Психик" : (hasG ? " ✅ Готов" : " ⏳ Думает");
+      return '<div class="' + cls + '">' + esc(p.nickname) + tag + '</div>';
+    }).join("");
+  }
+
+  function renderFinished(snap){
+    var sorted = snap.players.slice().sort(function(a, b){ return (b.score || 0) - (a.score || 0); });
+    var podium = id("finishedPodium");
+    podium.innerHTML = "";
+    
+    if(sorted[1]) podium.appendChild(createPodiumStep(sorted[1], 2));
+    if(sorted[0]) podium.appendChild(createPodiumStep(sorted[0], 1));
+    if(sorted[2]) podium.appendChild(createPodiumStep(sorted[2], 3));
+    
+    id("finishedRankingsList").innerHTML = sorted.map(function(p, idx){
+      return '<div class="player-chip">' +
+        '<div class="player-chip__avatar">' + p.nickname.charAt(0).toUpperCase() + '</div>' +
+        '<div class="player-chip__name">' + (idx + 1) + '. ' + esc(p.nickname) + '</div>' +
+        '<div class="player-chip__owner">' + (p.score || 0) + ' pts</div>' +
+      '</div>';
+    }).join("");
+    
+    var btn = id("finishedRestartButton");
+    var hint = id("finishedRestartHint");
+    if(snap.viewer.isOwner){
+      btn.removeAttribute("hidden");
+      hint.setAttribute("hidden", "true");
+    } else {
+      btn.setAttribute("hidden", "true");
+      hint.removeAttribute("hidden");
+    }
+  }
+
+  function createPodiumStep(player, rank){
+    var step = document.createElement("div");
+    step.className = "podium-step";
+    
+    var name = document.createElement("div");
+    name.style.fontSize = "12px";
+    name.style.marginBottom = "5px";
+    name.style.maxWidth = "80px";
+    name.style.overflow = "hidden";
+    name.style.textOverflow = "ellipsis";
+    name.style.whiteSpace = "nowrap";
+    name.textContent = player.nickname;
+    
+    var bar = document.createElement("div");
+    bar.className = "podium-bar podium-" + rank;
+    bar.textContent = rank === 1 ? "🥇" : (rank === 2 ? "🥈" : "🥉");
+    
+    var score = document.createElement("div");
+    score.style.fontSize = "11px";
+    score.style.marginTop = "5px";
+    score.textContent = (player.score || 0) + " pts";
+    
+    step.appendChild(name);
+    step.appendChild(bar);
+    step.appendChild(score);
+    return step;
+  }
+
   function copyJoinLink(){
     if(!state.room) return;
     var url = window.location.origin + "/wavelength?view=join&room=" + state.room.id;
@@ -376,6 +741,29 @@
     } else {
       showToast(url);
     }
+  }
+
+  function getWedgePath(cx, cy, r, centerPct, widthPct) {
+    var half = widthPct / 2;
+    var startPct = Math.max(0, centerPct - half);
+    var endPct = Math.min(100, centerPct + half);
+    var a1 = Math.PI * (1 - startPct / 100);
+    var a2 = Math.PI * (1 - endPct / 100);
+    var x1 = cx + r * Math.cos(a1);
+    var y1 = cy - r * Math.sin(a1);
+    var x2 = cx + r * Math.cos(a2);
+    var y2 = cy - r * Math.sin(a2);
+    return "M " + cx + " " + cy + " L " + x1 + " " + y1 + " A " + r + " " + r + " 0 0 1 " + x2 + " " + y2 + " Z";
+  }
+
+  function setDialPointer(lineId, valuePct, L) {
+    var line = id(lineId);
+    if(!line) return;
+    var rad = Math.PI * (1 - valuePct / 100);
+    var x = 120 + L * Math.cos(rad);
+    var y = 120 - L * Math.sin(rad);
+    line.setAttribute("x2", x);
+    line.setAttribute("y2", y);
   }
 
   /* ───── Helpers ───── */

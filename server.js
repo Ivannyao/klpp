@@ -99,6 +99,38 @@ function waveSerializeRoom(room, viewerClientId){
   const ownerClientId = players[0] ? players[0].clientId : "";
   const viewer = players.find(function(p){ return p.clientId === viewerClientId; }) || null;
   const minPlayers = room.settings.mode === "direct" ? 2 : 3;
+
+  let remaining = 0;
+  if(room.state === "round_intro") remaining = Math.max(0, Math.round((4000 - (Date.now() - room.phaseStartedAt)) / 1000));
+  else if(room.state === "clue_input") remaining = Math.max(0, Math.round((75000 - (Date.now() - room.phaseStartedAt)) / 1000));
+  else if(room.state === "guess") remaining = Math.max(0, Math.round((45000 - (Date.now() - room.phaseStartedAt)) / 1000));
+  else if(room.state === "reveal") remaining = Math.max(0, Math.round((10000 - (Date.now() - room.phaseStartedAt)) / 1000));
+  else if(room.state === "round_score") remaining = Math.max(0, Math.round((6000 - (Date.now() - room.phaseStartedAt)) / 1000));
+
+  let serializedRound = null;
+  if(room.currentRound){
+    const cr = room.currentRound;
+    const isPsychic = cr.psychicClientId === viewerClientId;
+    const isReveal = ["reveal", "round_score", "finished"].indexOf(room.state) !== -1;
+    const targetVisible = isPsychic || isReveal;
+    
+    serializedRound = {
+      psychicClientId: cr.psychicClientId,
+      psychicNickname: cr.psychicNickname,
+      opposites: cr.opposites,
+      clue: cr.clue,
+      targetCenter: targetVisible ? cr.targetCenter : null,
+      guesses: isReveal ? cr.guesses : {},
+      roundScores: isReveal ? cr.roundScores : null,
+      hasGuessed: room.players.reduce(function(acc, p){
+        if(p.clientId !== cr.psychicClientId){
+          acc[p.clientId] = cr.guesses[p.clientId] !== undefined;
+        }
+        return acc;
+      }, {})
+    };
+  }
+
   return {
     id: room.id,
     state: room.state,
@@ -106,6 +138,9 @@ function waveSerializeRoom(room, viewerClientId){
     settings: clone(room.settings),
     ownerClientId: ownerClientId,
     minPlayersToStart: minPlayers,
+    roundIndex: room.roundIndex || 0,
+    phaseTimerRemaining: remaining,
+    currentRound: serializedRound,
     players: players.map(function(p){
       return {clientId: p.clientId, nickname: p.nickname, isOwner: p.clientId === ownerClientId, score: p.score || 0};
     }),
@@ -118,12 +153,154 @@ function waveSerializeRoom(room, viewerClientId){
   };
 }
 function waveBroadcastRoom(room){
-  const payload = JSON.stringify({type: "snapshot", room: waveSerializeRoom(room, "")});
   room.sseClients.forEach(function(client){
     try {
       const personalised = JSON.stringify({type: "snapshot", room: waveSerializeRoom(room, client.clientId || "")});
       client.res.write("data: " + personalised + "\n\n");
     } catch(e){ /* drop bad clients */ }
+  });
+}
+
+function waveHasHostOrLeaderAccess(room, body){
+  const hostKey = String((body && body.hostKey) || "").trim();
+  if(hostKey && hostKey === room.hostKey) return true;
+  const ownerClientId = room.players[0] ? room.players[0].clientId : "";
+  const clientId = String((body && body.clientId) || "").trim();
+  return Boolean(clientId && clientId === ownerClientId);
+}
+
+function startWaveGame(room){
+  room.state = "round_intro";
+  room.roundIndex = 0;
+  room.phaseStartedAt = Date.now();
+  room.players.forEach(function(p){ p.score = 0; });
+  room.usedSpectrums = [];
+  setupWaveRound(room);
+}
+
+function setupWaveRound(room){
+  const psychicIndex = room.roundIndex % room.players.length;
+  const psychic = room.players[psychicIndex];
+  const targetCenter = Math.floor(Math.random() * 80) + 10; // 10 to 90
+  
+  let opposites = ["Лево", "Право"];
+  if(room.settings.topicMode === "preset"){
+    room.usedSpectrums = room.usedSpectrums || [];
+    let pool = WAVE_SPECTRUMS.filter(function(s){ return room.usedSpectrums.indexOf(s.join("↔")) === -1; });
+    if(pool.length === 0){
+      pool = WAVE_SPECTRUMS;
+      room.usedSpectrums = [];
+    }
+    const pair = pool[Math.floor(Math.random() * pool.length)];
+    room.usedSpectrums.push(pair.join("↔"));
+    opposites = pair;
+  }
+  
+  room.currentRound = {
+    psychicClientId: psychic.clientId,
+    psychicNickname: psychic.nickname,
+    targetCenter: targetCenter,
+    opposites: opposites,
+    clue: "",
+    guesses: {},
+    roundScores: {}
+  };
+}
+
+function calculateWaveScores(room){
+  const target = room.currentRound.targetCenter;
+  const guesses = room.currentRound.guesses;
+  const roundScores = {};
+  
+  let bestScore = 0;
+  room.players.forEach(function(p){
+    if(p.clientId === room.currentRound.psychicClientId) return;
+    
+    const val = guesses[p.clientId];
+    let pts = 0;
+    if(val !== undefined){
+      const diff = Math.abs(val - target);
+      if(diff <= 2) pts = 4;
+      else if(diff <= 6) pts = 3;
+      else if(diff <= 12) pts = 2;
+    }
+    
+    roundScores[p.clientId] = pts;
+    p.score = (p.score || 0) + pts;
+    if(pts > bestScore) bestScore = pts;
+  });
+  
+  const psychicPts = Math.min(3, bestScore);
+  const psychicId = room.currentRound.psychicClientId;
+  roundScores[psychicId] = psychicPts;
+  
+  const psychicPlayer = room.players.find(function(p){ return p.clientId === psychicId; });
+  if(psychicPlayer){
+    psychicPlayer.score = (psychicPlayer.score || 0) + psychicPts;
+  }
+  
+  room.currentRound.roundScores = roundScores;
+}
+
+function tickWaveRoom(room){
+  if(room.state === "lobby" || room.state === "finished" || room.state === "paused") return;
+  const now = Date.now();
+  const elapsed = now - room.phaseStartedAt;
+  
+  if(room.state === "round_intro"){
+    if(elapsed >= 4000){
+      room.state = "clue_input";
+      room.phaseStartedAt = now;
+    }
+  }
+  else if(room.state === "clue_input"){
+    if(elapsed >= 75000){
+      room.currentRound.clue = "(НЕТ ПОДСКАЗКИ)";
+      if(room.settings.topicMode === "player_creates"){
+        room.currentRound.opposites = ["Лево", "Право"];
+      }
+      room.state = "guess";
+      room.phaseStartedAt = now;
+    }
+  }
+  else if(room.state === "guess"){
+    const guessers = room.players.filter(function(p){ return p.clientId !== room.currentRound.psychicClientId; });
+    const allGuessed = guessers.every(function(p){ return room.currentRound.guesses[p.clientId] !== undefined; });
+    if(allGuessed || elapsed >= 45000){
+      calculateWaveScores(room);
+      room.state = "reveal";
+      room.phaseStartedAt = now;
+    }
+  }
+  else if(room.state === "reveal"){
+    if(elapsed >= 10000){
+      room.state = "round_score";
+      room.phaseStartedAt = now;
+    }
+  }
+  else if(room.state === "round_score"){
+    if(elapsed >= 6000){
+      if(room.roundIndex + 1 >= room.settings.roundCount){
+        room.state = "finished";
+        room.phaseStartedAt = now;
+      } else {
+        room.roundIndex += 1;
+        room.state = "round_intro";
+        room.phaseStartedAt = now;
+        setupWaveRound(room);
+      }
+    }
+  }
+}
+
+function waveGlobalTick(){
+  waveRooms.forEach(function(room){
+    if(room.state === "lobby" || room.state === "finished" || room.state === "paused") return;
+    const prevState = room.state;
+    const prevRoundIndex = room.roundIndex;
+    tickWaveRoom(room);
+    const changed = prevState !== room.state || room.roundIndex !== prevRoundIndex;
+    if(changed) waveBroadcastRoom(room);
   });
 }
 // GC for stale Wavelength rooms — same policy as KLPP.
@@ -2341,6 +2518,7 @@ function klppGlobalTick(){
 }
 
 setInterval(klppGlobalTick, KLPP_TICK_INTERVAL_MS).unref();
+setInterval(waveGlobalTick, 300).unref();
 
 function serveStatic(req, res, pathname){
   let relativePath = pathname === "/" || pathname === "/klpp" ? "/klpp.html" : pathname;
@@ -2565,6 +2743,116 @@ const server = http.createServer(async function(req, res){
       clearInterval(keepAlive);
       room.sseClients.delete(client);
     });
+    return;
+  }
+  const waveStartMatch = pathname.match(/^\/api\/wave\/room\/([^/]+)\/start$/);
+  if(req.method === "POST" && waveStartMatch){
+    try {
+      const room = waveGetRoom(waveStartMatch[1]);
+      if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+      const body = await parseBody(req);
+      if(!waveHasHostOrLeaderAccess(room, body)){
+        sendJson(res, 403, {ok: false, error: "Only host or owner player can start"});
+        return;
+      }
+      if(room.state !== "lobby"){ sendJson(res, 409, {ok: false, error: "Game already running"}); return; }
+      const minPlayers = room.settings.mode === "direct" ? 2 : 3;
+      if(room.players.length < minPlayers){
+        sendJson(res, 409, {ok: false, error: "Нужно минимум " + minPlayers + " игроков"});
+        return;
+      }
+      startWaveGame(room);
+      waveBroadcastRoom(room);
+      sendJson(res, 200, {ok: true, room: waveSerializeRoom(room, String(body.clientId || ""))});
+    } catch(error){ sendJson(res, 400, {ok: false, error: error.message}); }
+    return;
+  }
+  const waveSubmitClueMatch = pathname.match(/^\/api\/wave\/room\/([^/]+)\/submit-clue$/);
+  if(req.method === "POST" && waveSubmitClueMatch){
+    try {
+      const room = waveGetRoom(waveSubmitClueMatch[1]);
+      if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+      const body = await parseBody(req);
+      const clientId = String(body.clientId || "").trim();
+      if(!clientId || room.state !== "clue_input"){
+        sendJson(res, 400, {ok: false, error: "Invalid state or client"});
+        return;
+      }
+      if(clientId !== room.currentRound.psychicClientId){
+        sendJson(res, 403, {ok: false, error: "Only Psychic can submit clue"});
+        return;
+      }
+      const clue = String(body.clue || "").trim().slice(0, 100);
+      if(!clue){
+        sendJson(res, 400, {ok: false, error: "Введи подсказку"});
+        return;
+      }
+      
+      if(room.settings.topicMode === "player_creates"){
+        const left = String(body.left || "").trim().slice(0, 30) || "Лево";
+        const right = String(body.right || "").trim().slice(0, 30) || "Право";
+        room.currentRound.opposites = [left, right];
+      }
+      
+      room.currentRound.clue = clue;
+      room.state = "guess";
+      room.phaseStartedAt = Date.now();
+      
+      waveBroadcastRoom(room);
+      sendJson(res, 200, {ok: true, room: waveSerializeRoom(room, clientId)});
+    } catch(error){ sendJson(res, 400, {ok: false, error: error.message}); }
+    return;
+  }
+  const waveSubmitGuessMatch = pathname.match(/^\/api\/wave\/room\/([^/]+)\/submit-guess$/);
+  if(req.method === "POST" && waveSubmitGuessMatch){
+    try {
+      const room = waveGetRoom(waveSubmitGuessMatch[1]);
+      if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+      const body = await parseBody(req);
+      const clientId = String(body.clientId || "").trim();
+      const value = Number(body.value);
+      if(!clientId || room.state !== "guess" || isNaN(value) || value < 0 || value > 100){
+        sendJson(res, 400, {ok: false, error: "Invalid request"});
+        return;
+      }
+      if(clientId === room.currentRound.psychicClientId){
+        sendJson(res, 403, {ok: false, error: "Psychic cannot guess"});
+        return;
+      }
+      
+      room.currentRound.guesses[clientId] = value;
+      
+      const guessers = room.players.filter(function(p){ return p.clientId !== room.currentRound.psychicClientId; });
+      const allGuessed = guessers.every(function(p){ return room.currentRound.guesses[p.clientId] !== undefined; });
+      if(allGuessed){
+        calculateWaveScores(room);
+        room.state = "reveal";
+        room.phaseStartedAt = Date.now();
+      }
+      
+      waveBroadcastRoom(room);
+      sendJson(res, 200, {ok: true, room: waveSerializeRoom(room, clientId)});
+    } catch(error){ sendJson(res, 400, {ok: false, error: error.message}); }
+    return;
+  }
+  const waveRestartMatch = pathname.match(/^\/api\/wave\/room\/([^/]+)\/restart$/);
+  if(req.method === "POST" && waveRestartMatch){
+    try {
+      const room = waveGetRoom(waveRestartMatch[1]);
+      if(!room){ sendJson(res, 404, {ok: false, error: "Room not found"}); return; }
+      const body = await parseBody(req);
+      if(!waveHasHostOrLeaderAccess(room, body)){
+        sendJson(res, 403, {ok: false, error: "Only host or owner player can restart"});
+        return;
+      }
+      room.state = "lobby";
+      room.roundIndex = 0;
+      room.currentRound = null;
+      room.players.forEach(function(p){ p.score = 0; });
+      
+      waveBroadcastRoom(room);
+      sendJson(res, 200, {ok: true, room: waveSerializeRoom(room, String(body.clientId || ""))});
+    } catch(error){ sendJson(res, 400, {ok: false, error: error.message}); }
     return;
   }
   // ===== end Wavelength =====
