@@ -306,18 +306,20 @@ function waveGlobalTick(){
       return 0;
     };
     
-    const prevSecs = getRemainingSecs(room);
     const prevState = room.state;
     const prevRoundIndex = room.roundIndex;
     
     tickWaveRoom(room);
     
-    const newSecs = getRemainingSecs(room);
+    const currentSecs = getRemainingSecs(room);
     const changed = prevState !== room.state 
       || room.roundIndex !== prevRoundIndex 
-      || prevSecs !== newSecs;
+      || currentSecs !== room.lastBroadcastedSecs;
       
-    if(changed) waveBroadcastRoom(room);
+    if(changed){
+      room.lastBroadcastedSecs = currentSecs;
+      waveBroadcastRoom(room);
+    }
   });
 }
 // GC for stale Wavelength rooms — same policy as KLPP.

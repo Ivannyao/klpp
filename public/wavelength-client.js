@@ -763,6 +763,9 @@
           id("guesserOppositeRight").textContent = cr.opposites[1];
           id("guesserTargetWedges").setAttribute("hidden", "true");
           
+          var pointer = id("guesserPointer");
+          if(pointer) pointer.removeAttribute("hidden");
+          
           var slider = id("guesserGuessSlider");
           id("guesserGuessVal").textContent = slider.value;
           setDialPointer("guesserPointer", slider.value, 100);
