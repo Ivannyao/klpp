@@ -296,10 +296,27 @@ function tickWaveRoom(room){
 function waveGlobalTick(){
   waveRooms.forEach(function(room){
     if(room.state === "lobby" || room.state === "finished" || room.state === "paused") return;
+    
+    const getRemainingSecs = function(r){
+      if(r.state === "round_intro") return Math.max(0, Math.round((4000 - (Date.now() - r.phaseStartedAt)) / 1000));
+      if(r.state === "clue_input") return Math.max(0, Math.round((75000 - (Date.now() - r.phaseStartedAt)) / 1000));
+      if(r.state === "guess") return Math.max(0, Math.round((45000 - (Date.now() - r.phaseStartedAt)) / 1000));
+      if(r.state === "reveal") return Math.max(0, Math.round((10000 - (Date.now() - r.phaseStartedAt)) / 1000));
+      if(r.state === "round_score") return Math.max(0, Math.round((6000 - (Date.now() - r.phaseStartedAt)) / 1000));
+      return 0;
+    };
+    
+    const prevSecs = getRemainingSecs(room);
     const prevState = room.state;
     const prevRoundIndex = room.roundIndex;
+    
     tickWaveRoom(room);
-    const changed = prevState !== room.state || room.roundIndex !== prevRoundIndex;
+    
+    const newSecs = getRemainingSecs(room);
+    const changed = prevState !== room.state 
+      || room.roundIndex !== prevRoundIndex 
+      || prevSecs !== newSecs;
+      
     if(changed) waveBroadcastRoom(room);
   });
 }

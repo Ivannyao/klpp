@@ -646,24 +646,36 @@
         var x = 120 + 95 * Math.cos(rad);
         var y = 120 - 95 * Math.sin(rad);
         
-        var dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        dot.setAttribute("cx", x);
-        dot.setAttribute("cy", y);
-        dot.setAttribute("r", "5");
-        dot.setAttribute("fill", "var(--neon-cyan)");
-        dot.setAttribute("stroke", "#fff");
-        dot.setAttribute("stroke-width", "1.5");
-        group.appendChild(dot);
+        var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("class", "guess-pointer");
+        line.setAttribute("x1", "120");
+        line.setAttribute("y1", "120");
+        line.setAttribute("x2", "120");
+        line.setAttribute("y2", "120");
+        line.setAttribute("stroke", "var(--neon-cyan)");
+        line.setAttribute("stroke-width", "3");
+        line.setAttribute("stroke-linecap", "round");
+        group.appendChild(line);
         
         var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        txt.setAttribute("x", x);
-        txt.setAttribute("y", y - 8);
+        txt.setAttribute("class", "guess-pointer-text");
+        txt.setAttribute("x", "120");
+        txt.setAttribute("y", "120");
         txt.setAttribute("text-anchor", "middle");
         txt.setAttribute("fill", "#fff");
         txt.setAttribute("font-size", "9px");
         txt.setAttribute("font-weight", "900");
+        txt.setAttribute("style", "opacity: 0;");
         txt.textContent = (p.nickname || "?").slice(0, 3).toUpperCase();
         group.appendChild(txt);
+        
+        setTimeout(function(){
+          line.setAttribute("x2", x);
+          line.setAttribute("y2", y);
+          txt.setAttribute("x", x);
+          txt.setAttribute("y", y - 8);
+          txt.style.opacity = "1";
+        }, 50);
       });
     }
     
@@ -773,10 +785,28 @@
       id("guesserWedge4").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 4));
       setDialPointer("guesserTargetLine", cr.targetCenter, 100);
       
-      var finalGuess = isPsychic ? 50 : (cr.guesses[snap.viewer.clientId] || 50);
-      setDialPointer("guesserPointer", finalGuess, 100);
+      var pointer = id("guesserPointer");
+      if(pointer){
+        if(isPsychic){
+          pointer.setAttribute("hidden", "true");
+        } else {
+          pointer.removeAttribute("hidden");
+          var finalGuess = cr.guesses[snap.viewer.clientId] || 50;
+          // Start at center hub
+          pointer.setAttribute("x2", "120");
+          pointer.setAttribute("y2", "120");
+          
+          var rad = Math.PI * (1 - finalGuess / 100);
+          var finalX = 120 + 100 * Math.cos(rad);
+          var finalY = 120 - 100 * Math.sin(rad);
+          setTimeout(function(){
+            pointer.setAttribute("x2", finalX);
+            pointer.setAttribute("y2", finalY);
+          }, 50);
+        }
+      }
 
-      // Render other players' guesses as dots on the guesser dial!
+      // Render other players' guesses as arrows on the guesser dial!
       if(gGroup){
         gGroup.innerHTML = "";
         snap.players.forEach(function(p){
@@ -789,24 +819,36 @@
           var x = 120 + 95 * Math.cos(rad);
           var y = 120 - 95 * Math.sin(rad);
           
-          var dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          dot.setAttribute("cx", x);
-          dot.setAttribute("cy", y);
-          dot.setAttribute("r", "5");
-          dot.setAttribute("fill", "var(--neon-pink)");
-          dot.setAttribute("stroke", "#fff");
-          dot.setAttribute("stroke-width", "1.5");
-          gGroup.appendChild(dot);
+          var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("class", "guess-pointer");
+          line.setAttribute("x1", "120");
+          line.setAttribute("y1", "120");
+          line.setAttribute("x2", "120");
+          line.setAttribute("y2", "120");
+          line.setAttribute("stroke", "var(--neon-pink)");
+          line.setAttribute("stroke-width", "3");
+          line.setAttribute("stroke-linecap", "round");
+          gGroup.appendChild(line);
           
           var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          txt.setAttribute("x", x);
-          txt.setAttribute("y", y - 8);
+          txt.setAttribute("class", "guess-pointer-text");
+          txt.setAttribute("x", "120");
+          txt.setAttribute("y", "120");
           txt.setAttribute("text-anchor", "middle");
           txt.setAttribute("fill", "#fff");
           txt.setAttribute("font-size", "9px");
           txt.setAttribute("font-weight", "900");
+          txt.setAttribute("style", "opacity: 0;");
           txt.textContent = (p.nickname || "?").slice(0, 3).toUpperCase();
           gGroup.appendChild(txt);
+          
+          setTimeout(function(){
+            line.setAttribute("x2", x);
+            line.setAttribute("y2", y);
+            txt.setAttribute("x", x);
+            txt.setAttribute("y", y - 8);
+            txt.style.opacity = "1";
+          }, 50);
         });
       }
     }
