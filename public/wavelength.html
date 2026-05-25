@@ -56,10 +56,11 @@ body::after{
 @keyframes stars-twinkle{0%,100%{opacity:.4}50%{opacity:.6}}
 
 /* Nav */
-.site-nav{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;pointer-events:none}
-.nav-back{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:16px;background:rgba(255,255,255,.08);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);pointer-events:auto;cursor:pointer;color:#fff;text-decoration:none;font-weight:900;transition:background .15s ease,transform .15s ease}
-.nav-back:hover{background:rgba(255,255,255,.15);transform:translateX(-2px)}
-.nav-title{font-family:"Lobster",cursive;font-size:22px;color:var(--neon-cyan);letter-spacing:.04em;text-shadow:0 0 12px rgba(34,225,255,.6);pointer-events:auto}
+.site-nav{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:14px 20px;pointer-events:none}
+.nav-links{display:flex;gap:8px;pointer-events:auto}
+.wave-nav-link{display:inline-flex;align-items:center;justify-content:center;padding:9px 18px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:.04em;transition:all .18s ease;backdrop-filter:blur(10px)}
+.wave-nav-link:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
+.wave-nav-link.active{background:linear-gradient(135deg,var(--neon-cyan),var(--neon-pink));color:#0a0e1f;font-weight:900;border-color:transparent;box-shadow:0 4px 18px rgba(125,93,255,.45)}
 
 .screen{position:relative;min-height:100vh;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px 28px;text-align:center}
 
@@ -144,12 +145,11 @@ body::after{
 </head>
 <body>
 
-<nav class="site-nav" aria-label="Wavelength навигация">
-  <a class="nav-back" href="/klpp" aria-label="Назад в КЛПП">
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5 L7 12 L15 19" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
-  </a>
-  <div class="nav-title">Wavelength</div>
-  <div style="width:48px"></div>
+<nav class="site-nav" aria-label="Навигация">
+  <div class="nav-links">
+    <a class="wave-nav-link" href="/klpp">Игра КЛПП</a>
+    <a class="wave-nav-link active" href="/wavelength">Wavelength</a>
+  </div>
 </nav>
 
 <main>
