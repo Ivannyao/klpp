@@ -125,7 +125,9 @@
     settingsDraft: Object.assign({}, DEFAULT_SETTINGS),
     room: null,
     sse: null,
-    pollTimer: null
+    pollTimer: null,
+    revealAnimationPlayed: false,
+    hostRevealAnimationPlayed: false
   };
 
   var els = {
@@ -480,7 +482,11 @@
     if(snap.state !== prevState){
       if(snap.state === "round_intro") waveAudio.roundStart();
       else if(snap.state === "guess") waveAudio.clueSubmitted();
-      else if(snap.state === "reveal") waveAudio.reveal();
+      else if(snap.state === "reveal"){
+        waveAudio.reveal();
+        state.revealAnimationPlayed = false;
+        state.hostRevealAnimationPlayed = false;
+      }
       else if(snap.state === "finished") waveAudio.finish();
     }
     state.prevSnapState = snap.state;
@@ -625,58 +631,69 @@
     var wedges = id("hostTargetWedges");
     var isReveal = ["reveal", "round_score"].indexOf(snap.state) !== -1;
     if(isReveal && cr.targetCenter !== null){
-      wedges.removeAttribute("hidden");
-      id("hostWedge2").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 24));
-      id("hostWedge3").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 16));
-      id("hostWedge4").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 4));
+      if(wedges.hasAttribute("hidden")) wedges.removeAttribute("hidden");
+      var w2 = getWedgePath(120, 120, 100, cr.targetCenter, 24);
+      var w3 = getWedgePath(120, 120, 100, cr.targetCenter, 16);
+      var w4 = getWedgePath(120, 120, 100, cr.targetCenter, 4);
+      var elW2 = id("hostWedge2");
+      var elW3 = id("hostWedge3");
+      var elW4 = id("hostWedge4");
+      if(elW2.getAttribute("d") !== w2) elW2.setAttribute("d", w2);
+      if(elW3.getAttribute("d") !== w3) elW3.setAttribute("d", w3);
+      if(elW4.getAttribute("d") !== w4) elW4.setAttribute("d", w4);
       setDialPointer("hostTargetLine", cr.targetCenter, 100);
     } else {
-      wedges.setAttribute("hidden", "true");
+      if(!wedges.hasAttribute("hidden")) wedges.setAttribute("hidden", "true");
     }
     
     var group = id("hostGuessesGroup");
-    group.innerHTML = "";
     if(isReveal){
-      snap.players.forEach(function(p){
-        if(p.clientId === cr.psychicClientId) return;
-        var val = cr.guesses[p.clientId];
-        if(val === undefined) return;
-        
-        var rad = Math.PI * (1 - val / 100);
-        var x = 120 + 95 * Math.cos(rad);
-        var y = 120 - 95 * Math.sin(rad);
-        
-        var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("class", "guess-pointer");
-        line.setAttribute("x1", "120");
-        line.setAttribute("y1", "120");
-        line.setAttribute("x2", "120");
-        line.setAttribute("y2", "120");
-        line.setAttribute("stroke", "var(--neon-cyan)");
-        line.setAttribute("stroke-width", "3");
-        line.setAttribute("stroke-linecap", "round");
-        group.appendChild(line);
-        
-        var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        txt.setAttribute("class", "guess-pointer-text");
-        txt.setAttribute("x", "120");
-        txt.setAttribute("y", "120");
-        txt.setAttribute("text-anchor", "middle");
-        txt.setAttribute("fill", "#fff");
-        txt.setAttribute("font-size", "9px");
-        txt.setAttribute("font-weight", "900");
-        txt.setAttribute("style", "opacity: 0;");
-        txt.textContent = (p.nickname || "?").slice(0, 3).toUpperCase();
-        group.appendChild(txt);
-        
-        setTimeout(function(){
-          line.setAttribute("x2", x);
-          line.setAttribute("y2", y);
-          txt.setAttribute("x", x);
-          txt.setAttribute("y", y - 8);
-          txt.style.opacity = "1";
-        }, 50);
-      });
+      if(!state.hostRevealAnimationPlayed){
+        group.innerHTML = "";
+        snap.players.forEach(function(p){
+          if(p.clientId === cr.psychicClientId) return;
+          var val = cr.guesses[p.clientId];
+          if(val === undefined) return;
+          
+          var rad = Math.PI * (1 - val / 100);
+          var x = 120 + 95 * Math.cos(rad);
+          var y = 120 - 95 * Math.sin(rad);
+          
+          var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("class", "guess-pointer");
+          line.setAttribute("x1", "120");
+          line.setAttribute("y1", "120");
+          line.setAttribute("x2", "120");
+          line.setAttribute("y2", "120");
+          line.setAttribute("stroke", "var(--neon-cyan)");
+          line.setAttribute("stroke-width", "3");
+          line.setAttribute("stroke-linecap", "round");
+          group.appendChild(line);
+          
+          var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          txt.setAttribute("class", "guess-pointer-text");
+          txt.setAttribute("x", "120");
+          txt.setAttribute("y", "120");
+          txt.setAttribute("text-anchor", "middle");
+          txt.setAttribute("fill", "#fff");
+          txt.setAttribute("font-size", "9px");
+          txt.setAttribute("font-weight", "900");
+          txt.setAttribute("style", "opacity: 0;");
+          txt.textContent = (p.nickname || "?").slice(0, 3).toUpperCase();
+          group.appendChild(txt);
+          
+          setTimeout(function(){
+            line.setAttribute("x2", x);
+            line.setAttribute("y2", y);
+            txt.setAttribute("x", x);
+            txt.setAttribute("y", y - 8);
+            txt.style.opacity = "1";
+          }, 50);
+        });
+        state.hostRevealAnimationPlayed = true;
+      }
+    } else {
+      group.innerHTML = "";
     }
     
     id("hostGuessStatusList").innerHTML = snap.players.map(function(p){
@@ -717,9 +734,15 @@
     else if(snap.state === "clue_input"){
       if(isPsychic){
         divPsychic.hidden = false;
-        id("psychicWedge2").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 24));
-        id("psychicWedge3").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 16));
-        id("psychicWedge4").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 4));
+        var w2 = getWedgePath(120, 120, 100, cr.targetCenter, 24);
+        var w3 = getWedgePath(120, 120, 100, cr.targetCenter, 16);
+        var w4 = getWedgePath(120, 120, 100, cr.targetCenter, 4);
+        var elW2 = id("psychicWedge2");
+        var elW3 = id("psychicWedge3");
+        var elW4 = id("psychicWedge4");
+        if(elW2.getAttribute("d") !== w2) elW2.setAttribute("d", w2);
+        if(elW3.getAttribute("d") !== w3) elW3.setAttribute("d", w3);
+        if(elW4.getAttribute("d") !== w4) elW4.setAttribute("d", w4);
         setDialPointer("psychicTargetLine", cr.targetCenter, 100);
         
         var customBlock = id("psychicCustomOppositesBlock");
@@ -782,10 +805,16 @@
       id("guesserOppositeRight").textContent = cr.opposites[1];
       
       var gWedges = id("guesserTargetWedges");
-      gWedges.removeAttribute("hidden");
-      id("guesserWedge2").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 24));
-      id("guesserWedge3").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 16));
-      id("guesserWedge4").setAttribute("d", getWedgePath(120, 120, 100, cr.targetCenter, 4));
+      if(gWedges.hasAttribute("hidden")) gWedges.removeAttribute("hidden");
+      var w2 = getWedgePath(120, 120, 100, cr.targetCenter, 24);
+      var w3 = getWedgePath(120, 120, 100, cr.targetCenter, 16);
+      var w4 = getWedgePath(120, 120, 100, cr.targetCenter, 4);
+      var elW2 = id("guesserWedge2");
+      var elW3 = id("guesserWedge3");
+      var elW4 = id("guesserWedge4");
+      if(elW2.getAttribute("d") !== w2) elW2.setAttribute("d", w2);
+      if(elW3.getAttribute("d") !== w3) elW3.setAttribute("d", w3);
+      if(elW4.getAttribute("d") !== w4) elW4.setAttribute("d", w4);
       setDialPointer("guesserTargetLine", cr.targetCenter, 100);
       
       var pointer = id("guesserPointer");
@@ -795,65 +824,75 @@
         } else {
           pointer.removeAttribute("hidden");
           var finalGuess = cr.guesses[snap.viewer.clientId] || 50;
-          // Start at center hub
-          pointer.setAttribute("x2", "120");
-          pointer.setAttribute("y2", "120");
-          
           var rad = Math.PI * (1 - finalGuess / 100);
           var finalX = 120 + 100 * Math.cos(rad);
           var finalY = 120 - 100 * Math.sin(rad);
-          setTimeout(function(){
-            pointer.setAttribute("x2", finalX);
-            pointer.setAttribute("y2", finalY);
-          }, 50);
+          
+          if(!state.revealAnimationPlayed){
+            // Start at center hub
+            pointer.setAttribute("x2", "120");
+            pointer.setAttribute("y2", "120");
+            setTimeout(function(){
+              pointer.setAttribute("x2", finalX);
+              pointer.setAttribute("y2", finalY);
+            }, 50);
+          } else {
+            var targetX = String(finalX);
+            var targetY = String(finalY);
+            if(pointer.getAttribute("x2") !== targetX) pointer.setAttribute("x2", targetX);
+            if(pointer.getAttribute("y2") !== targetY) pointer.setAttribute("y2", targetY);
+          }
         }
       }
 
       // Render other players' guesses as arrows on the guesser dial!
       if(gGroup){
-        gGroup.innerHTML = "";
-        snap.players.forEach(function(p){
-          if(p.clientId === cr.psychicClientId) return;
-          if(p.clientId === snap.viewer.clientId) return;
-          var val = cr.guesses[p.clientId];
-          if(val === undefined) return;
-          
-          var rad = Math.PI * (1 - val / 100);
-          var x = 120 + 95 * Math.cos(rad);
-          var y = 120 - 95 * Math.sin(rad);
-          
-          var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          line.setAttribute("class", "guess-pointer");
-          line.setAttribute("x1", "120");
-          line.setAttribute("y1", "120");
-          line.setAttribute("x2", "120");
-          line.setAttribute("y2", "120");
-          line.setAttribute("stroke", "var(--neon-pink)");
-          line.setAttribute("stroke-width", "3");
-          line.setAttribute("stroke-linecap", "round");
-          gGroup.appendChild(line);
-          
-          var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          txt.setAttribute("class", "guess-pointer-text");
-          txt.setAttribute("x", "120");
-          txt.setAttribute("y", "120");
-          txt.setAttribute("text-anchor", "middle");
-          txt.setAttribute("fill", "#fff");
-          txt.setAttribute("font-size", "9px");
-          txt.setAttribute("font-weight", "900");
-          txt.setAttribute("style", "opacity: 0;");
-          txt.textContent = (p.nickname || "?").slice(0, 3).toUpperCase();
-          gGroup.appendChild(txt);
-          
-          setTimeout(function(){
-            line.setAttribute("x2", x);
-            line.setAttribute("y2", y);
-            txt.setAttribute("x", x);
-            txt.setAttribute("y", y - 8);
-            txt.style.opacity = "1";
-          }, 50);
-        });
+        if(!state.revealAnimationPlayed){
+          gGroup.innerHTML = "";
+          snap.players.forEach(function(p){
+            if(p.clientId === cr.psychicClientId) return;
+            if(p.clientId === snap.viewer.clientId) return;
+            var val = cr.guesses[p.clientId];
+            if(val === undefined) return;
+            
+            var rad = Math.PI * (1 - val / 100);
+            var x = 120 + 95 * Math.cos(rad);
+            var y = 120 - 95 * Math.sin(rad);
+            
+            var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("class", "guess-pointer");
+            line.setAttribute("x1", "120");
+            line.setAttribute("y1", "120");
+            line.setAttribute("x2", "120");
+            line.setAttribute("y2", "120");
+            line.setAttribute("stroke", "var(--neon-pink)");
+            line.setAttribute("stroke-width", "3");
+            line.setAttribute("stroke-linecap", "round");
+            gGroup.appendChild(line);
+            
+            var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            txt.setAttribute("class", "guess-pointer-text");
+            txt.setAttribute("x", "120");
+            txt.setAttribute("y", "120");
+            txt.setAttribute("text-anchor", "middle");
+            txt.setAttribute("fill", "#fff");
+            txt.setAttribute("font-size", "9px");
+            txt.setAttribute("font-weight", "900");
+            txt.setAttribute("style", "opacity: 0;");
+            txt.textContent = (p.nickname || "?").slice(0, 3).toUpperCase();
+            gGroup.appendChild(txt);
+            
+            setTimeout(function(){
+              line.setAttribute("x2", x);
+              line.setAttribute("y2", y);
+              txt.setAttribute("x", x);
+              txt.setAttribute("y", y - 8);
+              txt.style.opacity = "1";
+            }, 50);
+          });
+        }
       }
+      state.revealAnimationPlayed = true;
     }
     else if(snap.state === "round_score"){
       divWaiting.hidden = false;
@@ -975,8 +1014,10 @@
     var rad = Math.PI * (1 - valuePct / 100);
     var x = 120 + L * Math.cos(rad);
     var y = 120 - L * Math.sin(rad);
-    line.setAttribute("x2", x);
-    line.setAttribute("y2", y);
+    var targetX = String(x);
+    var targetY = String(y);
+    if(line.getAttribute("x2") !== targetX) line.setAttribute("x2", targetX);
+    if(line.getAttribute("y2") !== targetY) line.setAttribute("y2", targetY);
   }
 
   /* ───── Helpers ───── */
