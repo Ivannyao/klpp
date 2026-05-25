@@ -6,6 +6,107 @@
   var DEFAULT_SETTINGS = {roundCount: 5, mode: "host", topicMode: "preset"};
   var ROUND_PRESETS = [3, 5, 7, 10];
 
+  /* ───── Web Audio Sound Engine ───── */
+  var waveAudio = (function(){
+    var ctx = null;
+    var muted = false;
+
+    function getCtx(){
+      if(!ctx){
+        try{ ctx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ return null; }
+      }
+      if(ctx.state === "suspended") ctx.resume().catch(function(){});
+      return ctx;
+    }
+
+    function playTone(frequency, type, duration, volume, delay, fadeOut){
+      var c = getCtx();
+      if(!c || muted) return;
+      var osc = c.createOscillator();
+      var gain = c.createGain();
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.type = type || "sine";
+      osc.frequency.setValueAtTime(frequency, c.currentTime + (delay || 0));
+      gain.gain.setValueAtTime(volume || 0.15, c.currentTime + (delay || 0));
+      if(fadeOut !== false){
+        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + (delay || 0) + duration);
+      }
+      osc.start(c.currentTime + (delay || 0));
+      osc.stop(c.currentTime + (delay || 0) + duration);
+    }
+
+    function playNoise(duration, volume, delay){
+      var c = getCtx();
+      if(!c || muted) return;
+      var bufSize = c.sampleRate * duration;
+      var buf = c.createBuffer(1, bufSize, c.sampleRate);
+      var data = buf.getChannelData(0);
+      for(var i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+      var src = c.createBufferSource();
+      var gain = c.createGain();
+      var filter = c.createBiquadFilter();
+      src.buffer = buf;
+      filter.type = "bandpass";
+      filter.frequency.value = 400;
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(c.destination);
+      gain.gain.setValueAtTime(volume || 0.08, c.currentTime + (delay || 0));
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + (delay || 0) + duration);
+      src.start(c.currentTime + (delay || 0));
+      src.stop(c.currentTime + (delay || 0) + duration);
+    }
+
+    return {
+      unlock: function(){ getCtx(); },
+      tick: function(){ playTone(880, "square", 0.04, 0.05, 0); },
+      finalTick: function(){ playTone(1200, "square", 0.06, 0.08, 0); },
+      roundStart: function(){
+        playTone(330, "sine", 0.15, 0.1, 0);
+        playTone(440, "sine", 0.15, 0.1, 0.1);
+        playTone(550, "sine", 0.15, 0.1, 0.2);
+        playTone(660, "sine", 0.25, 0.15, 0.3);
+      },
+      clueSubmitted: function(){
+        playTone(523, "triangle", 0.15, 0.1, 0);
+        playTone(659, "triangle", 0.15, 0.1, 0.08);
+        playTone(784, "triangle", 0.25, 0.12, 0.16);
+      },
+      guessSubmitted: function(){
+        playTone(587.33, "sine", 0.08, 0.08, 0);
+        playTone(880, "sine", 0.12, 0.1, 0.06);
+      },
+      reveal: function(){
+        playTone(220, "sawtooth", 0.4, 0.08, 0);
+        playTone(277.18, "sawtooth", 0.4, 0.08, 0.05);
+        playTone(329.63, "sawtooth", 0.4, 0.08, 0.1);
+        playTone(440, "sawtooth", 0.6, 0.12, 0.15);
+        playNoise(0.5, 0.05, 0.2);
+      },
+      finish: function(){
+        playTone(523.25, "triangle", 0.12, 0.12, 0);
+        playTone(659.25, "triangle", 0.12, 0.12, 0.1);
+        playTone(784, "triangle", 0.12, 0.12, 0.2);
+        playTone(1046.5, "triangle", 0.35, 0.15, 0.3);
+        playNoise(0.6, 0.06, 0.35);
+      },
+      click: function(){ playTone(600, "sine", 0.03, 0.05, 0); }
+    };
+  })();
+
+  var lastTickTime = 0;
+  var lastTickVal = -1;
+  function playSliderTick(){
+    var now = Date.now();
+    var val = Number(id("guesserGuessSlider").value);
+    if(now - lastTickTime > 70 && Math.abs(val - lastTickVal) >= 1){
+      waveAudio.click();
+      lastTickTime = now;
+      lastTickVal = val;
+    }
+  }
+
   function id(s){ return document.getElementById(s); }
   function getClientId(){
     var k = localStorage.getItem("waveClientId");
@@ -70,29 +171,34 @@
     renderSetupForm();
     bindEvents();
     bootFromUrl();
+    
+    // Unlock Web Audio context on first user interaction
+    document.addEventListener("click", function(){ waveAudio.unlock(); }, {once: true});
+    document.addEventListener("touchstart", function(){ waveAudio.unlock(); }, {once: true});
   }
 
   function bindEvents(){
-    els.homePlayButton.addEventListener("click", function(){ navigate("setup"); });
-    els.setupCreateButton.addEventListener("click", createRoom);
-    els.setupJoinButton.addEventListener("click", function(){ navigate("join"); });
-    els.lobbyCopyButton.addEventListener("click", copyJoinLink);
-    els.lobbyStartButton.addEventListener("click", startGame);
-    els.playerLobbyCopyButton.addEventListener("click", copyJoinLink);
-    els.playerLobbyStartButton.addEventListener("click", startGame);
-    els.joinSubmitButton.addEventListener("click", submitJoin);
+    els.homePlayButton.addEventListener("click", function(){ waveAudio.click(); navigate("setup"); });
+    els.setupCreateButton.addEventListener("click", function(){ waveAudio.click(); createRoom(); });
+    els.setupJoinButton.addEventListener("click", function(){ waveAudio.click(); navigate("join"); });
+    els.lobbyCopyButton.addEventListener("click", function(){ waveAudio.click(); copyJoinLink(); });
+    els.lobbyStartButton.addEventListener("click", function(){ waveAudio.click(); startGame(); });
+    els.playerLobbyCopyButton.addEventListener("click", function(){ waveAudio.click(); copyJoinLink(); });
+    els.playerLobbyStartButton.addEventListener("click", function(){ waveAudio.click(); startGame(); });
+    els.joinSubmitButton.addEventListener("click", function(){ waveAudio.click(); submitJoin(); });
     els.joinCodeInput.addEventListener("input", function(){
       els.joinCodeInput.value = sanitizeRoomId(els.joinCodeInput.value);
     });
     
-    id("psychicSubmitButton").addEventListener("click", submitClue);
-    id("guesserSubmitButton").addEventListener("click", submitGuess);
-    id("finishedRestartButton").addEventListener("click", restartGame);
+    id("psychicSubmitButton").addEventListener("click", function(){ waveAudio.click(); submitClue(); });
+    id("guesserSubmitButton").addEventListener("click", function(){ waveAudio.click(); submitGuess(); });
+    id("finishedRestartButton").addEventListener("click", function(){ waveAudio.click(); restartGame(); });
     
     id("guesserGuessSlider").addEventListener("input", function(){
       var val = this.value;
       id("guesserGuessVal").textContent = val;
       setDialPointer("guesserPointer", val, 100);
+      playSliderTick();
     });
 
     document.addEventListener("visibilitychange", function(){
@@ -368,6 +474,27 @@
 
   function handleSnapshot(snap){
     state.room = snap;
+
+    // Trigger sounds on state transitions
+    var prevState = state.prevSnapState;
+    if(snap.state !== prevState){
+      if(snap.state === "round_intro") waveAudio.roundStart();
+      else if(snap.state === "guess") waveAudio.clueSubmitted();
+      else if(snap.state === "reveal") waveAudio.reveal();
+      else if(snap.state === "finished") waveAudio.finish();
+    }
+    state.prevSnapState = snap.state;
+
+    // Countdown ticking sounds
+    var prevTimer = state.prevTimerRemaining;
+    if(snap.phaseTimerRemaining !== prevTimer && ["clue_input", "guess"].indexOf(snap.state) !== -1){
+      if(snap.phaseTimerRemaining > 0 && snap.phaseTimerRemaining <= 5){
+        waveAudio.finalTick();
+      } else if(snap.phaseTimerRemaining > 0 && snap.phaseTimerRemaining <= 10 && snap.phaseTimerRemaining % 2 === 0){
+        waveAudio.tick();
+      }
+    }
+    state.prevTimerRemaining = snap.phaseTimerRemaining;
     
     if(snap.state !== "lobby"){
       if(snap.state === "finished"){
@@ -550,6 +677,9 @@
   }
 
   function renderPlayerPlay(snap){
+    var gGroup = id("guesserGuessesGroup");
+    if(gGroup) gGroup.innerHTML = "";
+
     id("playerRoundIndex").textContent = "Раунд " + (snap.roundIndex + 1) + " из " + snap.settings.roundCount;
     id("playerTimer").textContent = snap.phaseTimerRemaining;
     
@@ -615,6 +745,7 @@
           divGuesser.hidden = false;
           id("guesserControlsBlock").hidden = false;
           id("guesserSubmittedMessage").hidden = true;
+          id("guesserPhaseTitle").textContent = "Время угадывать!";
           id("guesserClueText").textContent = cr.clue;
           id("guesserOppositeLeft").textContent = cr.opposites[0];
           id("guesserOppositeRight").textContent = cr.opposites[1];
@@ -630,6 +761,7 @@
       divGuesser.hidden = false;
       id("guesserControlsBlock").hidden = true;
       id("guesserSubmittedMessage").hidden = true;
+      id("guesserPhaseTitle").textContent = isPsychic ? "Раскрытие спектра!" : "Результаты раунда!";
       id("guesserClueText").textContent = cr.clue;
       id("guesserOppositeLeft").textContent = cr.opposites[0];
       id("guesserOppositeRight").textContent = cr.opposites[1];
@@ -643,6 +775,40 @@
       
       var finalGuess = isPsychic ? 50 : (cr.guesses[snap.viewer.clientId] || 50);
       setDialPointer("guesserPointer", finalGuess, 100);
+
+      // Render other players' guesses as dots on the guesser dial!
+      if(gGroup){
+        gGroup.innerHTML = "";
+        snap.players.forEach(function(p){
+          if(p.clientId === cr.psychicClientId) return;
+          if(p.clientId === snap.viewer.clientId) return;
+          var val = cr.guesses[p.clientId];
+          if(val === undefined) return;
+          
+          var rad = Math.PI * (1 - val / 100);
+          var x = 120 + 95 * Math.cos(rad);
+          var y = 120 - 95 * Math.sin(rad);
+          
+          var dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          dot.setAttribute("cx", x);
+          dot.setAttribute("cy", y);
+          dot.setAttribute("r", "5");
+          dot.setAttribute("fill", "var(--neon-pink)");
+          dot.setAttribute("stroke", "#fff");
+          dot.setAttribute("stroke-width", "1.5");
+          gGroup.appendChild(dot);
+          
+          var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          txt.setAttribute("x", x);
+          txt.setAttribute("y", y - 8);
+          txt.setAttribute("text-anchor", "middle");
+          txt.setAttribute("fill", "#fff");
+          txt.setAttribute("font-size", "9px");
+          txt.setAttribute("font-weight", "900");
+          txt.textContent = (p.nickname || "?").slice(0, 3).toUpperCase();
+          gGroup.appendChild(txt);
+        });
+      }
     }
     else if(snap.state === "round_score"){
       divWaiting.hidden = false;

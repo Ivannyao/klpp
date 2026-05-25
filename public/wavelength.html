@@ -62,7 +62,9 @@ body::after{
 .wave-nav-link:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
 .wave-nav-link.active{background:linear-gradient(135deg,var(--neon-cyan),var(--neon-pink));color:#0a0e1f;font-weight:900;border-color:transparent;box-shadow:0 4px 18px rgba(125,93,255,.45)}
 
-.screen{position:relative;min-height:100vh;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px 28px;text-align:center}
+.screen{position:relative;min-height:100vh;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px 28px;text-align:center;animation:screen-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards}
+@keyframes screen-fade-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+#guesserPointer, #psychicTargetLine, #hostTargetLine, #guesserTargetLine {transition: x2 0.35s cubic-bezier(0.16, 1, 0.3, 1), y2 0.35s cubic-bezier(0.16, 1, 0.3, 1);}
 
 /* ===== HOME ===== */
 .wave-logo{display:flex;flex-direction:column;align-items:center;margin-bottom:36px}
@@ -125,7 +127,10 @@ body::after{
 
 /* Gameplay Styles */
 .game-info{font-size:14px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;color:var(--neon-cyan);margin-bottom:10px}
-.game-timer{font-size:32px;font-family:"Lobster",cursive;color:var(--neon-pink);margin-bottom:20px;text-shadow:0 0 10px rgba(255,61,138,0.5)}
+.game-timer-wrap{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,61,138,0.12);border:1px solid rgba(255,61,138,0.3);padding:6px 16px;border-radius:999px;margin:0 auto 20px;box-shadow:0 0 15px rgba(255,61,138,0.15)}
+.timer-icon{font-size:20px;animation:timer-pulse 1s ease-in-out infinite alternate}
+@keyframes timer-pulse{0%{transform:scale(1)}100%{transform:scale(1.22)}}
+.game-timer{font-size:32px;font-family:"Lobster",cursive;color:var(--neon-pink);text-shadow:0 0 10px rgba(255,61,138,0.5);line-height:1}
 .opposites-row{display:flex;justify-content:space-between;width:100%;max-width:400px;margin:15px auto;font-weight:900;font-size:18px;letter-spacing:0.05em}
 .opposite-label{padding:8px 16px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)}
 .opposite-left{color:var(--neon-cyan);text-shadow:0 0 8px rgba(34,225,255,0.3)}
@@ -300,7 +305,10 @@ body::after{
     <div class="setup-card" style="width:min(720px,96vw);text-align:center;padding:30px 24px">
       <div class="game-info" id="hostRoundIndex">Раунд 1 из 5</div>
       <h2 id="hostPhaseTitle" style="font-family:'Lobster',cursive;font-size:32px;margin:5px 0 15px">Ход загадывающего</h2>
-      <div class="game-timer" id="hostTimer">75</div>
+      <div class="game-timer-wrap">
+        <span class="timer-icon" aria-hidden="true">⏱️</span>
+        <span class="game-timer" id="hostTimer">75</span>
+      </div>
 
       <!-- Main Host SVG Dial -->
       <div style="position:relative;margin:20px auto;max-width:400px">
@@ -344,7 +352,10 @@ body::after{
   <section class="screen" id="screenPlayerPlay" hidden>
     <div class="setup-card" style="max-width:450px;text-align:center;padding:24px 20px">
       <div class="game-info" id="playerRoundIndex">Раунд 1 из 5</div>
-      <div class="game-timer" id="playerTimer" style="margin-bottom:10px">75</div>
+      <div class="game-timer-wrap">
+        <span class="timer-icon" aria-hidden="true">⏱️</span>
+        <span class="game-timer" id="playerTimer">75</span>
+      </div>
 
       <!-- 1. PSYCHIC VIEW -->
       <div id="playerViewPsychic" hidden>
@@ -390,7 +401,7 @@ body::after{
 
       <!-- 2. GUESSER VIEW -->
       <div id="playerViewGuesser" hidden>
-        <h3 style="font-family:'Lobster',cursive;font-size:24px;color:var(--neon-cyan);margin:0 0 12px">Время угадывать!</h3>
+        <h3 id="guesserPhaseTitle" style="font-family:'Lobster',cursive;font-size:24px;color:var(--neon-cyan);margin:0 0 12px">Время угадывать!</h3>
         
         <!-- Speech bubble showing Psychic's clue -->
         <div class="clue-bubble" style="margin-top:10px;margin-bottom:15px;padding:12px 20px;font-size:18px">
@@ -409,6 +420,9 @@ body::after{
               <path id="guesserWedge4" d="" fill="var(--neon-cyan)" />
               <line id="guesserTargetLine" x1="120" y1="120" x2="120" y2="20" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-dasharray="3,3" />
             </g>
+
+            <!-- Guess markers group (revealed later) -->
+            <g id="guesserGuessesGroup"></g>
 
             <line id="guesserPointer" x1="120" y1="120" x2="120" y2="20" stroke="var(--neon-cyan)" stroke-width="4" stroke-linecap="round" />
             <circle cx="120" cy="120" r="8" fill="var(--bg-light)" stroke="var(--neon-cyan)" stroke-width="2" />
@@ -466,6 +480,6 @@ body::after{
 
 <div class="toast" id="toast"></div>
 
-<script src="/wavelength-client.js?v=wave-2"></script>
+<script src="/wavelength-client.js?v=wave-3"></script>
 </body>
 </html>
