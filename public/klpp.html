@@ -467,9 +467,9 @@ img{display:block;max-width:100%}
 .host-wooden-stage {
   position: absolute;
   bottom: 0; left: 0; right: 0;
-  height: 150px;
+  height: 120px;
   background: url('/klpp-assets/lobby/wooden-stage.png') no-repeat bottom center;
-  background-size: 100% 100%;
+  background-size: cover;
   z-index: 10;
   display: none;
   border-top: 6px solid #111;
@@ -672,6 +672,21 @@ img{display:block;max-width:100%}
   animation: fly-in-right 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards;
 }
 
+.vote-timer-circle.fly-left-out {
+  animation: timer-fade-out 0.45s ease forwards;
+}
+.vote-timer-circle.fly-right-in {
+  animation: timer-fade-in 0.6s ease forwards;
+}
+@keyframes timer-fade-out {
+  0% { transform: translateX(-50%) scale(1); opacity: 1; }
+  100% { transform: translateX(-50%) scale(0.3); opacity: 0; }
+}
+@keyframes timer-fade-in {
+  0% { transform: translateX(-50%) scale(0.3); opacity: 0; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
 @keyframes fly-out-left {
   0% { transform: translateX(0); opacity: 1; }
   100% { transform: translateX(-120vw); opacity: 0; }
@@ -729,7 +744,7 @@ img{display:block;max-width:100%}
 .scoreboard-active .video-bg,
 .scoreboard-active .sunburst-bg { display: none !important }
 /* Podium MUST be above all curtains (15/16) and any host chrome. */
-.scoreboard-active .stage-panel.scoreboard-mode { z-index: 100 !important; left: 50% !important; transform: translateX(-50%) !important; right: auto !important; width: min(96vw, 1100px) !important; max-width: 1100px; top: 14vh !important }
+.scoreboard-active .stage-panel.scoreboard-mode { z-index: 100 !important; left: 50% !important; transform: translateX(-50%) !important; right: auto !important; width: min(96vw, 1100px) !important; max-width: 1100px; bottom: 120px !important; top: auto !important }
 
 /* --- Podium --- */
 .stage-panel.scoreboard-mode {

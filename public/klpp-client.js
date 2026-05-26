@@ -816,10 +816,12 @@
         var promptEl = els.hostStagePrompt;
         var pairEl = els.hostStageBody.querySelector(".stage-vote-pair");
         var finalGridEl = els.hostStageBody.querySelector(".final-lash-grid");
+        var timerEl = id("hostVoteTimerCircleContainer");
         
         if(promptEl) promptEl.classList.add("fly-left-out");
         if(pairEl) pairEl.classList.add("fly-left-out");
         if(finalGridEl) finalGridEl.classList.add("fly-left-out");
+        if(timerEl) timerEl.classList.add("fly-left-out");
 
         state.duelTransitionTimeout = setTimeout(function(){
           state.duelTransitionTimeout = null;
@@ -829,6 +831,7 @@
           var newPromptEl = els.hostStagePrompt;
           var newPairEl = els.hostStageBody.querySelector(".stage-vote-pair");
           var newFinalGridEl = els.hostStageBody.querySelector(".final-lash-grid");
+          var newTimerEl = id("hostVoteTimerCircleContainer");
           
           if(newPromptEl){
             newPromptEl.classList.remove("fly-left-out");
@@ -842,6 +845,11 @@
           if(newFinalGridEl){
             newFinalGridEl.classList.add("fly-right-in");
             setTimeout(function(){ newFinalGridEl.classList.remove("fly-right-in"); }, 650);
+          }
+          if(newTimerEl){
+            newTimerEl.classList.remove("fly-left-out");
+            newTimerEl.classList.add("fly-right-in");
+            setTimeout(function(){ newTimerEl.classList.remove("fly-right-in"); }, 650);
           }
         }, 450);
       } else {
