@@ -164,6 +164,14 @@
         playNoise(0.5, 0.07, 0.35);
         playTone(988, "triangle", 0.25, 0.15, 0.55);
       },
+      tie: function(){
+        playTone(392, "triangle", 0.12, 0.15, 0);
+        playTone(392, "triangle", 0.12, 0.15, 0.15);
+      },
+      noAnswer: function(){
+        playTone(180, "sawtooth", 0.4, 0.18, 0);
+        playNoise(0.4, 0.12, 0);
+      },
       answerSubmit: function(){
         // Quick soft confirm
         playTone(660, "sine", 0.08, 0.08, 0);
@@ -753,6 +761,18 @@
       if(snap.state === "round_intro") klppAudio.roundStart();
       else if(snap.state === "vote") klppAudio.voteStart();
       else if(snap.state === "finished") klppAudio.finish();
+      else if(snap.state === "vote_result" && state.view === "host" && snap.currentVote && snap.currentVote.result) {
+        var r = snap.currentVote.result;
+        var hasMissing = r.autoReason && (r.autoReason.indexOf("missed") !== -1 || r.autoReason === "both-missed");
+        var isTie = r.leftPercent === r.rightPercent;
+        if(hasMissing){
+          klppAudio.noAnswer();
+        } else if(isTie){
+          klppAudio.tie();
+        } else {
+          klppAudio.win();
+        }
+      }
     }
     state.prevSnapState = snap.state;
 
@@ -1549,8 +1569,9 @@
     var delta = vote.result ? (side === "left" ? vote.result.leftScoreDelta : vote.result.rightScoreDelta) : null;
     
     var hideAuthor = vote && vote.anonymous && !showResult;
+    var isTie = showResult && vote.result && vote.result.leftPercent === vote.result.rightPercent;
     var isLoser = showResult && !isWinner && vote.result && vote.result.leftPercent !== vote.result.rightPercent;
-    var cardClass = "vote-card" + (isWinner ? " winner" : "") + (isLoser ? " loser" : "");
+    var cardClass = "vote-card" + (isWinner ? " winner" : "") + (isLoser ? " loser" : "") + (isTie ? " tie" : "") + (missing ? " missing" : "");
 
     var authorHtml = "";
     if(!hideAuthor) {
@@ -1559,11 +1580,19 @@
       authorHtml = '<div class="vote-author">' + avatarHtml + '<span>' + authorName + '</span></div>';
     }
     
+    var stampHtml = "";
+    if(missing) {
+      stampHtml = '<div class="vote-stamp stamp-missing">Нет ответа</div>';
+    } else if(isTie) {
+      stampHtml = '<div class="vote-stamp stamp-tie">Ничья!</div>';
+    }
+
     var reverseLabel = isReverse ? '<div style="font-size:0.72em;opacity:0.65;margin-bottom:3px">❓ Вопрос:</div>' : '';
     return '<div class="' + cardClass + '">' +
       authorHtml +
       '<div class="vote-text">' + reverseLabel + (missing ? '<em style="opacity:.7">НЕТ ОТВЕТА</em>' : escapeHtml(text)) + '</div>' +
       (showResult ? '<div class="vote-tally"><span>' + (pct == null ? 0 : pct) + "%</span><span>+" + (delta || 0) + "</span></div>" : "") +
+      stampHtml +
     '</div>';
   }
 
@@ -1665,6 +1694,17 @@
     var sorted = scoreboard.slice().sort(function(a,b){ return b.score - a.score; });
     var top3 = sorted.slice(0, 3);
     var rest = sorted.slice(3);
+    
+    // Compute ranks for top3
+    var ranks = [];
+    var currentRank = 1;
+    for (var i = 0; i < top3.length; i++) {
+      if (i > 0 && top3[i].score < top3[i-1].score) {
+        currentRank = i + 1;
+      }
+      ranks.push(currentRank);
+    }
+
     var podiumHtml = '<div class="podium-container">';
     var displayOrder = [1, 0, 2];
     displayOrder.forEach(function(idx) {
@@ -1673,10 +1713,11 @@
         var player = lookupPlayer(snap, item.clientId);
         var avatarHtml = renderAvatarHtml(player && player.avatar, "md");
         var placeClass = idx === 0 ? "first" : (idx === 1 ? "second" : "third");
+        var displayRank = ranks[idx];
         podiumHtml += '<div class="podium-spot ' + placeClass + '">' +
           '<div class="podium-name">' + escapeHtml(item.nickname) + '</div>' +
           '<div class="podium-avatar">' + avatarHtml + '</div>' +
-          '<div class="podium-block">' + (idx + 1) + '<div class="podium-score">' + (item.score || 0) + '</div></div>' +
+          '<div class="podium-block">' + displayRank + '<div class="podium-score">' + (item.score || 0) + '</div></div>' +
         '</div>';
       }
     });

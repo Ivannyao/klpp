@@ -485,45 +485,49 @@ img{display:block;max-width:100%}
   top: 0; left: 0; right: 0; bottom: 0;
   pointer-events: none;
   z-index: 11;
-  background: 
-    radial-gradient(circle at 30% 0%, rgba(255,243,184,0.18) 0%, rgba(255,243,184,0) 50%),
-    radial-gradient(circle at 70% 0%, rgba(255,243,184,0.18) 0%, rgba(255,243,184,0) 50%);
   mix-blend-mode: screen;
   display: none;
-  animation: spotlight-sweep 6s ease-in-out infinite alternate;
 }
 .scoreboard-active .stage-spotlight {
   display: block;
 }
-/* When first place podium displays, we can highlight the center spotlight */
-.scoreboard-active.podium-revealed .stage-spotlight {
-  animation: spotlight-sweep-focus 3s ease-in-out infinite alternate;
+.spotlight-beam {
+  position: absolute;
+  top: -40px;
+  height: 130%;
+  width: 320px;
+  transform-origin: top center;
+  pointer-events: none;
+  background: conic-gradient(from 165deg at 50% 0%, transparent 0deg, rgba(255, 255, 220, 0.28) 12deg, rgba(255, 255, 220, 0.28) 18deg, transparent 30deg);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 40%, rgba(0,0,0,0) 80%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 40%, rgba(0,0,0,0) 80%);
+  filter: blur(12px);
 }
-@keyframes spotlight-sweep {
-  0% {
-    background: 
-      radial-gradient(circle at 25% -10%, rgba(255,243,184,0.22) 0%, rgba(255,243,184,0) 55%),
-      radial-gradient(circle at 75% -10%, rgba(255,243,184,0.22) 0%, rgba(255,243,184,0) 55%);
-  }
-  100% {
-    background: 
-      radial-gradient(circle at 35% -10%, rgba(255,243,184,0.22) 0%, rgba(255,243,184,0) 55%),
-      radial-gradient(circle at 65% -10%, rgba(255,243,184,0.22) 0%, rgba(255,243,184,0) 55%);
-  }
+.beam-left {
+  left: 20%;
+  animation: spotlight-sweep-left 7s ease-in-out infinite alternate;
 }
-@keyframes spotlight-sweep-focus {
-  0% {
-    background: 
-      radial-gradient(circle at 25% -10%, rgba(255,243,184,0.15) 0%, rgba(255,243,184,0) 50%),
-      radial-gradient(circle at 50% -20%, rgba(255,215,0,0.4) 0%, rgba(255,215,0,0) 65%),
-      radial-gradient(circle at 75% -10%, rgba(255,243,184,0.15) 0%, rgba(255,243,184,0) 50%);
-  }
-  100% {
-    background: 
-      radial-gradient(circle at 30% -10%, rgba(255,243,184,0.15) 0%, rgba(255,243,184,0) 50%),
-      radial-gradient(circle at 50% -20%, rgba(255,215,0,0.5) 0%, rgba(255,215,0,0) 65%),
-      radial-gradient(circle at 70% -10%, rgba(255,243,184,0.15) 0%, rgba(255,243,184,0) 50%);
-  }
+.beam-right {
+  right: 20%;
+  animation: spotlight-sweep-right 8s ease-in-out infinite alternate;
+}
+.beam-center {
+  left: 50%;
+  margin-left: -160px;
+  background: conic-gradient(from 165deg at 50% 0%, transparent 0deg, rgba(255, 215, 0, 0.38) 12deg, rgba(255, 215, 0, 0.38) 18deg, transparent 30deg);
+  opacity: 0;
+  transition: opacity 1.5s ease;
+}
+.scoreboard-active.podium-revealed .beam-center {
+  opacity: 1;
+}
+@keyframes spotlight-sweep-left {
+  0% { transform: rotate(-16deg); }
+  100% { transform: rotate(8deg); }
+}
+@keyframes spotlight-sweep-right {
+  0% { transform: rotate(-8deg); }
+  100% { transform: rotate(16deg); }
 }
 
 /* --- Live reactions container --- */
@@ -596,6 +600,58 @@ img{display:block;max-width:100%}
   filter: grayscale(0.6);
   box-shadow: 4px 4px 0 rgba(0,0,0,0.1) !important;
   transition: all 0.5s ease;
+}
+.stage-panel.vote-mode .vote-card.tie {
+  border-color: #ff9f1c !important;
+  box-shadow: 0 0 25px rgba(255, 159, 28, 0.4), 8px 8px 0 rgba(0,0,0,0.15) !important;
+  animation: winner-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+.stage-panel.vote-mode .vote-card.missing {
+  border-color: #ff4a4a !important;
+  background: #fff5f5 !important;
+  opacity: 0.65;
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.1) !important;
+  transition: all 0.5s ease;
+}
+.vote-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-10deg);
+  padding: 8px 18px;
+  font-family: "Impact", "Arial Black", sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  border-radius: 8px;
+  z-index: 10;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.stamp-tie {
+  color: #ff9f1c;
+  border: 6px double #ff9f1c;
+  background: rgba(255, 159, 28, 0.12);
+  text-shadow: 0 0 10px rgba(255, 159, 28, 0.3);
+  animation: tie-stamp-anim 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+.stamp-missing {
+  color: #ff4a4a;
+  border: 6px double #ff4a4a;
+  background: rgba(255, 74, 74, 0.12);
+  text-shadow: 0 0 10px rgba(255, 74, 74, 0.3);
+  animation: missing-stamp-anim 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.4) both;
+}
+@keyframes tie-stamp-anim {
+  0% { transform: translate(-50%, -50%) scale(3) rotate(-35deg); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(-10deg); opacity: 1; }
+}
+@keyframes missing-stamp-anim {
+  0% { transform: translate(-50%, -50%) scale(0.1) rotate(45deg); opacity: 0; }
+  50% { transform: translate(-50%, -50%) scale(1.3) rotate(-15deg); }
+  70% { transform: translate(-50%, -50%) scale(0.9) rotate(15deg); }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(5deg); opacity: 1; }
 }
 @keyframes winner-pop {
   0% { transform: scale(1); }
@@ -685,6 +741,7 @@ img{display:block;max-width:100%}
 }
 .podium-spot {
   display: flex; flex-direction: column; align-items: center; width: 220px;
+  height: 100%; justify-content: flex-end;
   animation: slideUp 1s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 .podium-spot.first { animation-delay: 0.6s; z-index: 3; }
@@ -694,12 +751,12 @@ img{display:block;max-width:100%}
 .podium-block {
   width: 100%; border: 6px solid #111; border-bottom: none;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-  padding-top: 20px; font-size: 80px; font-weight: 900; color: #fff; text-shadow: 4px 4px 0 #000;
+  padding-top: 15px; font-size: 80px; font-weight: 900; line-height: 1; color: #fff; text-shadow: 4px 4px 0 #000;
   box-shadow: inset 0 10px 20px rgba(255,255,255,0.4), 8px 8px 0 rgba(0,0,0,0.3);
 }
 .podium-spot.first .podium-block { height: 300px; background: linear-gradient(to bottom, #ffd700, #b8860b); }
-.podium-spot.second .podium-block { height: 220px; background: linear-gradient(to bottom, #e0e0e0, #909090); }
-.podium-spot.third .podium-block { height: 160px; background: linear-gradient(to bottom, #cd7f32, #8b4513); }
+.podium-spot.second .podium-block { height: 240px; background: linear-gradient(to bottom, #e0e0e0, #909090); }
+.podium-spot.third .podium-block { height: 180px; background: linear-gradient(to bottom, #cd7f32, #8b4513); }
 
 .podium-avatar {
   margin-bottom: 20px; position: relative;
@@ -1243,7 +1300,11 @@ img{display:block;max-width:100%}
           <div class="curtain-transition-panel right"></div>
         </div>
         <div class="host-wooden-stage" id="hostWoodenStage"></div>
-        <div class="stage-spotlight" id="hostSpotlights"></div>
+        <div class="stage-spotlight" id="hostSpotlights">
+          <div class="spotlight-beam beam-left"></div>
+          <div class="spotlight-beam beam-center"></div>
+          <div class="spotlight-beam beam-right"></div>
+        </div>
         <div class="live-reactions-container" id="liveReactionsContainer"></div>
 
         <div class="host-qr-card"><img id="qrImage" alt="QR код для входа"></div>
