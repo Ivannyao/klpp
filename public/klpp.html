@@ -106,7 +106,9 @@ img{display:block;max-width:100%}
 
 .mobile-menu{display:none}
 
-.screen-host{background:url("/klpp-assets/lobby/hill-bg.jpg") center center / cover no-repeat}
+.screen-host{background:url("/klpp-assets/lobby/hill-bg.jpg") center center / cover no-repeat;height:100vh;overflow:hidden}
+.screen-host .host-shell{padding:0;min-height:100vh;height:100vh}
+.screen-host .host-scene{min-height:100vh;height:100vh}
 .screen-join,.screen-player,.screen-settings{background:#fff;overflow:hidden}
 .screen-join:before,.screen-player:before,.screen-settings:before{content:"";position:fixed;left:50%;top:50%;width:180vmax;height:180vmax;transform:translate(-50%,-50%);background:repeating-conic-gradient(from -10deg,#fff 0deg 14deg,#d1d1d1 14deg 28deg);animation:spin-rays 90s linear infinite;z-index:0}
 .host-shell,.join-shell,.player-shell,.settings-shell{position:relative;min-height:100vh;padding:88px 18px 28px;z-index:1}
