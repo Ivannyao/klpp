@@ -57,7 +57,6 @@
       if(!ctx){
         try{ ctx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ return null; }
       }
-      // Resume if suspended (browser autoplay policy)
       if(ctx.state === "suspended") ctx.resume().catch(function(){});
       return ctx;
     }
@@ -101,9 +100,78 @@
       src.stop(c.currentTime + (delay || 0) + duration);
     }
 
+    var rockIntervalId = null;
+    var rockStep = 0;
+
     return {
+      startRockLoop: function(){
+        if(rockIntervalId) return;
+        rockStep = 0;
+        rockIntervalId = setInterval(function(){
+          var c = getCtx();
+          if(!c || muted) return;
+          
+          var chords = [
+            [82.41, 123.47], // E2, B2
+            [82.41, 123.47], // E2, B2
+            [98.00, 146.83], // G2, D3
+            [110.00, 164.81], // A2, E3
+            [82.41, 123.47], // E2, B2
+            [82.41, 123.47], // E2, B2
+            [98.00, 146.83], // G2, D3
+            [73.42, 110.00]  // D2, A2
+          ];
+          
+          var chord = chords[rockStep % 8];
+          chord.forEach(function(freq) {
+            playTone(freq, "sawtooth", 0.22, 0.08, 0, true);
+          });
+          
+          var stepInBar = rockStep % 8;
+          if (stepInBar === 0 || stepInBar === 4 || stepInBar === 6) {
+            var osc = c.createOscillator();
+            var gain = c.createGain();
+            osc.connect(gain);
+            gain.connect(c.destination);
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(150, c.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, c.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.2, c.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.15);
+            osc.start(c.currentTime);
+            osc.stop(c.currentTime + 0.15);
+          }
+          if (stepInBar === 2 || stepInBar === 6) {
+            playNoise(0.12, 0.12, 0);
+            playTone(220, "triangle", 0.08, 0.1, 0, true);
+          }
+          
+          rockStep++;
+        }, 250);
+      },
+      stopRockLoop: function(){
+        if(rockIntervalId){
+          clearInterval(rockIntervalId);
+          rockIntervalId = null;
+        }
+      },
+      hit: function(){
+        var c = getCtx();
+        if(!c || muted) return;
+        var osc = c.createOscillator();
+        var gain = c.createGain();
+        osc.connect(gain);
+        gain.connect(c.destination);
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(180, c.currentTime);
+        osc.frequency.linearRampToValueAtTime(50, c.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.3, c.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.25);
+        osc.start(c.currentTime);
+        osc.stop(c.currentTime + 0.25);
+        playNoise(0.2, 0.25, 0);
+      },
       unlock: function(){
-        // Call on first user interaction to unlock audio context
         getCtx();
       },
       tick: function(){
@@ -111,7 +179,6 @@
         playTone(880, "square", 0.04, 0.08, 0);
       },
       finalTick: function(){
-        // Last 3 ticks - higher pitch
         playTone(1200, "square", 0.06, 0.12, 0);
       },
       roundStart: function(){
@@ -153,7 +220,6 @@
         var base = 440 + streak * 60;
         playTone(base, "triangle", 0.08, 0.12, 0);
         playTone(base * 1.25, "triangle", 0.08, 0.12, 0.09);
-        playTone(base * 1.5, "triangle", 0.15, 0.15, 0.18);
       },
       finish: function(){
         // Big ending fanfare
@@ -179,6 +245,10 @@
       },
       voteClick: function(){
         // Satisfying click
+        playTone(440, "sine", 0.06, 0.1, 0);
+      },
+      click: function(){
+        // Satisfying click (alias)
         playTone(440, "sine", 0.06, 0.1, 0);
       }
     };
@@ -342,6 +412,9 @@
     liveReactionsContainer: id("liveReactionsContainer")
   };
 
+  var originalPlayerAnswerFormHtml = els.playerAnswerForm ? els.playerAnswerForm.innerHTML : "";
+  var gfFormRendered = false;
+
   bindEvents();
   populateCharacterEditor();
   loadAvailableModifiers();
@@ -389,6 +462,8 @@
     }
     els.hostPauseButton.addEventListener("click", hostPauseToggle);
     els.hostEndButton.addEventListener("click", hostEnd);
+    var hostTestBtn = id("hostTestArenaButton");
+    if(hostTestBtn) hostTestBtn.addEventListener("click", startTestArena);
     // Dev mode wiring
     var devBtn = document.getElementById("devLaunchButton");
     if(devBtn) devBtn.addEventListener("click", devLaunch);
@@ -756,6 +831,14 @@
       snap.state !== "lobby" && snap.state !== "launch" && snap.state !== "finished";
     document.body.classList.toggle("drunk-mode", isDrunk);
 
+    var isArenaDeath = snap.currentRound && snap.currentRound.type === "final_lash" && snap.state !== "finished";
+    document.body.classList.toggle("arena-death-active", !!isArenaDeath);
+    if (isArenaDeath && state.view === "host") {
+      klppAudio.startRockLoop();
+    } else {
+      klppAudio.stopRockLoop();
+    }
+
     // Sound triggers on state transitions
     if(snap.state !== prevState){
       if(snap.state === "round_intro") klppAudio.roundStart();
@@ -1110,18 +1193,31 @@
     if(!snap || !snap.viewer || !snap.viewer.currentAssignment) return;
     
     var text = "";
-    var isMeme = Boolean(snap.viewer.currentAssignment.memeImageUrl);
+    var isMeme = false;
+    var stdWrapper = id("playerAnswerStandardWrapper");
+    if (stdWrapper && stdWrapper.hidden) {
+      isMeme = true;
+    } else if (snap.viewer.currentAssignment.memeImageUrl) {
+      isMeme = true;
+    }
     
+    var memeUrl = "";
     if(isMeme) {
-      var topText = String(id("playerAnswerMemeTop").value || "").trim();
-      var bottomText = String(id("playerAnswerMemeBottom").value || "").trim();
+      var topInput = id("playerAnswerMemeTop");
+      var bottomInput = id("playerAnswerMemeBottom");
+      var topText = String((topInput ? topInput.value : "") || "").trim();
+      var bottomText = String((bottomInput ? bottomInput.value : "") || "").trim();
       if (!topText && !bottomText) {
         showAnswerHint("Напиши хотя бы один text для мема!", true);
         return;
       }
       text = JSON.stringify({ top: topText, bottom: bottomText });
+      
+      var memeImg = id("playerAnswerMemeImage");
+      if (memeImg) memeUrl = memeImg.getAttribute("src") || "";
     } else {
-      text = String(els.playerAnswerInput.value || "").trim();
+      var answerInput = id("playerAnswerInput") || els.playerAnswerInput;
+      text = String((answerInput ? answerInput.value : "") || "").trim();
       if(!text){ return; }
       var validation = validateAnswerAgainstActiveModifiers(text);
       if(!validation.ok){
@@ -1133,28 +1229,29 @@
     var pairId = snap.viewer.currentAssignment.pairId;
     if(state.pendingSubmit) return;
     state.pendingSubmit = pairId;
-    els.playerAnswerSubmit.disabled = true;
+    if (els.playerAnswerSubmit) els.playerAnswerSubmit.disabled = true;
     try{
       await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/answer", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({clientId: state.clientId, pairId: pairId, text: text})
+        body: JSON.stringify({clientId: state.clientId, pairId: pairId, text: text, memeImageUrl: memeUrl})
       });
       klppAudio.answerSubmit();
       if(isMeme) {
-        id("playerAnswerMemeTop").value = "";
-        id("playerAnswerMemeBottom").value = "";
-        id("playerAnswerMemePreviewTop").textContent = "";
-        id("playerAnswerMemePreviewBottom").textContent = "";
+        if (id("playerAnswerMemeTop")) id("playerAnswerMemeTop").value = "";
+        if (id("playerAnswerMemeBottom")) id("playerAnswerMemeBottom").value = "";
+        if (id("playerAnswerMemePreviewTop")) id("playerAnswerMemePreviewTop").textContent = "";
+        if (id("playerAnswerMemePreviewBottom")) id("playerAnswerMemePreviewBottom").textContent = "";
       } else {
-        els.playerAnswerInput.value = "";
+        var answerInput = id("playerAnswerInput") || els.playerAnswerInput;
+        if (answerInput) answerInput.value = "";
       }
       showAnswerHint("", false);
     }catch(error){
       els.playerAnswerMeta.textContent = error.message || "Не удалось отправить ответ";
     }
     state.pendingSubmit = null;
-    els.playerAnswerSubmit.disabled = false;
+    if (els.playerAnswerSubmit) els.playerAnswerSubmit.disabled = false;
   }
 
   function getActiveModifierIds(){
@@ -1222,6 +1319,19 @@
     }
   }
 
+  async function submitBet(targetClientId, amount){
+    if(!state.roomId) return;
+    try{
+      await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/bet", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({clientId: state.clientId, targetClientId: targetClientId, amount: amount})
+      });
+    }catch(error){
+      alert(error.message || "Не удалось сделать ставку");
+    }
+  }
+
   async function startGame(){
     if(!state.roomId) return;
     try{
@@ -1232,6 +1342,19 @@
       });
     }catch(error){
       alert(error.message || "Не удалось начать игру");
+    }
+  }
+
+  async function startTestArena(){
+    if(!state.roomId) return;
+    try{
+      await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/test-arena", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({clientId: state.clientId})
+      });
+    }catch(error){
+      alert(error.message || "Не удалось запустить тест Арены");
     }
   }
 
@@ -1399,15 +1522,27 @@
     if(!isIntro){
       els.hostRoundTransition.classList.remove("active");
       els.hostRoundTransition.hidden = true;
+      document.body.classList.remove("arena-transition-active");
       return;
     }
     var roundNumber = snap.currentRound.roundNumber;
-    
+    var isArenaRound = snap.currentRound.type === "final_lash";
+
     if(state.lastTransitionRound !== roundNumber){
       state.lastTransitionRound = roundNumber;
     }
 
-    els.hostRoundTransitionNumber.textContent = String(roundNumber);
+    if(isArenaRound){
+      document.body.classList.add("arena-transition-active");
+      var labelEl = els.hostRoundTransition.querySelector(".host-round-transition__label");
+      if(labelEl) labelEl.textContent = "КРОВАВАЯ АРЕНА СМЕРТИ";
+      els.hostRoundTransitionNumber.innerHTML = '<img src="/klpp-assets/logo-arena.png" alt="Arena Logo" style="max-height:180px; max-width:80%; object-fit:contain; filter:drop-shadow(0 0 20px #ff0000);"><br><span style="font-size:clamp(14px,2vw,22px); color:#ff5555; display:block; margin-top:8px;">Турнир начинается!</span>';
+    } else {
+      document.body.classList.remove("arena-transition-active");
+      var labelEl = els.hostRoundTransition.querySelector(".host-round-transition__label");
+      if(labelEl) labelEl.textContent = "РАУНД";
+      els.hostRoundTransitionNumber.textContent = String(roundNumber);
+    }
     var mods = snap.activeModifiers || [];
     els.hostRoundTransitionMods.innerHTML = mods.map(buildModifierBadgeHtml).join("");
     els.hostRoundTransition.hidden = false;
@@ -1481,18 +1616,40 @@
       prompt = "Поехали!";
       body = "<p class=\"panel-copy\">Готовим первый раунд.</p>";
     } else if(state === "round_intro" && snap.currentRound){
-      prompt = "Раунд " + snap.currentRound.roundNumber;
+      var isArenaRound = snap.currentRound.type === "final_lash";
+      prompt = isArenaRound ? "КРОВАВАЯ АРЕНА СМЕРТИ" : ("Раунд " + snap.currentRound.roundNumber);
       body = "<p class=\"panel-copy\">" + escapeHtml(snap.currentRound.introText || "Поехали!") + "</p>";
     } else if(state === "answer" && snap.currentRound){
       var isReverse = snap.currentRound && snap.currentRound.type === "reverse";
       var isBlind = !isReverse && snap.activeModifiers && snap.activeModifiers.some(function(m){ return m && m.id === "blind_round"; });
+      var isArenaAnswer = snap.currentRound.type === "final_lash";
       if(isReverse) prompt = "❓ Игроки придумывают вопрос к ответу";
       else if(isBlind) prompt = "🙈 Слепой раунд — только подсказка категории";
+      else if(isArenaAnswer) prompt = "💀 Арена: игроки пишут свои ответы";
       else prompt = "Игроки пишут ответы на своих вопросах";
       body = "<p class=\"panel-copy\">Каждый игрок отвечает на свои пары. На большом экране результаты появятся, когда все закончат.</p>";
+    } else if(state === "grand_final_prompt_vote" && snap.tournament){
+      prompt = "Выбор финального вопроса";
+      var choices = (snap.tournament.grandFinalPromptChoices || []);
+      var votes = (snap.tournament.promptVotes || {});
+      var voterCount = Object.keys(votes).length;
+      var totalPlayers = (snap.players || []).filter(function(p){ return !p.isTempBot; }).length;
+      body = '<p class="panel-copy" style="font-size:18px; font-weight:800; color:#ffdd44;">Игроки голосуют за финальный вопрос! (' + voterCount + '/' + totalPlayers + ')</p>' +
+        '<div style="display:flex; flex-direction:column; gap:12px; margin-top:20px;">' +
+        choices.map(function(c, i) {
+          var vcount = Object.values(votes).filter(function(v){ return v === c.id; }).length;
+          return '<div style="background:rgba(30,0,0,0.8); border:2px solid #500; border-radius:12px; padding:14px 20px; display:flex; justify-content:space-between; align-items:center;">' +
+            '<span style="font-size:16px; font-weight:800; color:#fff;">' + escapeHtml(c.text) + '</span>' +
+            '<span style="font-size:22px; font-weight:900; color:#ff5555; min-width:40px; text-align:right;">' + vcount + ' 🗳</span>' +
+            '</div>';
+        }).join('') +
+        '</div>';
     } else if(state === "vote" && snap.currentVote){
       var vote = snap.currentVote;
-      if(vote.type === "final_lash" || vote.type === "meme_round"){
+      if(vote.isTournamentMatch){
+        prompt = "💀 Арена: " + escapeHtml(vote.questionText);
+        body = renderHostTournamentDuel(vote, snap, false);
+      } else if(vote.type === "final_lash" || vote.type === "meme_round"){
         prompt = vote.type === "meme_round" ? ("🖼️ Мем-раунд: " + vote.questionText) : ("💀 Смертельный бой: " + vote.questionText);
         body = renderHostFinalVote(vote, snap, false);
       } else {
@@ -1502,7 +1659,10 @@
       }
     } else if(state === "vote_result" && snap.currentVote){
       var vote = snap.currentVote;
-      if(vote.type === "final_lash" || vote.type === "meme_round"){
+      if(vote.isTournamentMatch){
+        prompt = "💀 Арена: " + escapeHtml(vote.questionText);
+        body = renderHostTournamentDuel(vote, snap, true);
+      } else if(vote.type === "final_lash" || vote.type === "meme_round"){
         prompt = vote.type === "meme_round" ? ("🖼️ Мем-раунд: " + vote.questionText) : ("💀 Смертельный бой: " + vote.questionText);
         body = renderHostFinalVote(vote, snap, true);
       } else {
@@ -1606,6 +1766,88 @@
 
   function renderAnonymousAvatarHtml(){
     return '<div class="avatar avatar--sm" style="background:#444;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #111">?</div>';
+  }
+
+  function renderHostTournamentDuel(vote, snap, showResult) {
+    var leftPlayer = lookupPlayer(snap, vote.leftClientId);
+    var rightPlayer = lookupPlayer(snap, vote.rightClientId);
+    var leftName = leftPlayer ? escapeHtml(leftPlayer.nickname) : "Игрок А";
+    var rightName = rightPlayer ? escapeHtml(rightPlayer.nickname) : "Игрок Б";
+    var leftAvatar = renderAvatarHtml(leftPlayer && leftPlayer.avatar, "md");
+    var rightAvatar = renderAvatarHtml(rightPlayer && rightPlayer.avatar, "md");
+
+    var leftPct = 50, rightPct = 50;
+    if (showResult && vote.result) {
+      leftPct = vote.result.leftPercent;
+      rightPct = vote.result.rightPercent;
+    }
+
+    // Health bars: left bar goes right→left, right bar goes left→right
+    var leftHealthPct = showResult ? leftPct : 100;
+    var rightHealthPct = showResult ? rightPct : 100;
+
+    var leftWinner = showResult && vote.result && vote.result.leftPercent > vote.result.rightPercent;
+    var rightWinner = showResult && vote.result && vote.result.rightPercent > vote.result.leftPercent;
+
+    var leftAnswerHtml = vote.leftMissing
+      ? '<em style="opacity:0.5">НЕТ ОТВЕТА</em>'
+      : (vote.leftMemeImageUrl
+          ? '<img src="' + escapeHtml(vote.leftMemeImageUrl) + '" style="max-height:100px; object-fit:contain; border-radius:6px;">'
+          : '<span style="font-size:17px;">&laquo;' + escapeHtml(vote.leftText) + '&raquo;</span>');
+    var rightAnswerHtml = vote.rightMissing
+      ? '<em style="opacity:0.5">НЕТ ОТВЕТА</em>'
+      : (vote.rightMemeImageUrl
+          ? '<img src="' + escapeHtml(vote.rightMemeImageUrl) + '" style="max-height:100px; object-fit:contain; border-radius:6px;">'
+          : '<span style="font-size:17px;">&laquo;' + escapeHtml(vote.rightText) + '&raquo;</span>');
+
+    var resultLine = '';
+    if (showResult && vote.result) {
+      var winnerName = leftWinner ? leftName : (rightWinner ? rightName : 'Ничья');
+      resultLine = '<div style="text-align:center; margin-top:15px; font-size:20px; font-weight:900; color:' + (leftWinner || rightWinner ? '#ffdd44' : '#aaa') + '; text-shadow:0 0 12px #ff0000;">' +
+        (leftWinner || rightWinner ? '🏆 ПОБЕДИТЕЛЬ: ' + winnerName : '⚔️ НИЧЬЯ — жеребьёвка') +
+        '</div>' +
+        '<div style="display:flex; justify-content:center; gap:20px; margin-top:8px; font-size:14px; font-weight:800; color:#ccc;">' +
+        '<span>' + leftName + ': ' + leftPct + '%' + (showResult && vote.result ? ' (+' + (vote.result.leftScoreDelta || 0) + ')' : '') + '</span>' +
+        '<span style="color:#555">|</span>' +
+        '<span>' + rightName + ': ' + rightPct + '%' + (showResult && vote.result ? ' (+' + (vote.result.rightScoreDelta || 0) + ')' : '') + '</span>' +
+        '</div>';
+    } else {
+      resultLine = '<p class="panel-copy" style="margin-top:12px; text-align:center;">Голосуйте на телефонах! Не голосуют авторы.</p>';
+    }
+
+    // Bracket context
+    var bracketHtml = '';
+    if (snap.tournament) {
+      var stageIdx = snap.tournament.stageIndex;
+      var numStages = snap.tournament.stages.length;
+      var stageLabel = stageIdx === numStages - 1 ? 'ГРАНД ФИНАЛ' : (stageIdx === numStages - 2 ? 'ПОЛУФИНАЛ' : ('РАУНД ' + (stageIdx + 1)));
+      bracketHtml = '<div style="text-align:center; margin-bottom:10px;">' +
+        '<span style="background:#500; color:#ff5555; border-radius:8px; padding:4px 14px; font-size:13px; font-weight:900; text-transform:uppercase; letter-spacing:1px;">' + stageLabel + '</span>' +
+        '</div>';
+    }
+
+    return bracketHtml +
+      '<div class="gf-fight-stage">' +
+        // LEFT FIGHTER
+        '<div class="gf-fighter-side left' + (leftWinner ? ' attack-left' : '') + (showResult && !leftWinner && rightWinner ? ' knocked-out' : '') + '">' +
+          '<div class="gf-fighter-meta">' + leftAvatar + '<span>' + leftName + '</span></div>' +
+          '<div class="gf-health-bar-container" style="direction:rtl;">' +
+            '<div class="gf-health-bar" style="width:' + leftHealthPct + '%; background:linear-gradient(90deg,#ff0000,#ff6b00);"></div>' +
+          '</div>' +
+          '<div class="gf-fighter-answer-card">' + leftAnswerHtml + '</div>' +
+        '</div>' +
+        // VS
+        '<div class="gf-vs-medallion">⚔️</div>' +
+        // RIGHT FIGHTER
+        '<div class="gf-fighter-side right' + (rightWinner ? ' attack-right' : '') + (showResult && !rightWinner && leftWinner ? ' knocked-out' : '') + '">' +
+          '<div class="gf-fighter-meta"><span>' + rightName + '</span>' + rightAvatar + '</div>' +
+          '<div class="gf-health-bar-container">' +
+            '<div class="gf-health-bar" style="width:' + rightHealthPct + '%; background:linear-gradient(90deg,#ff6b00,#ff0000);"></div>' +
+          '</div>' +
+          '<div class="gf-fighter-answer-card">' + rightAnswerHtml + '</div>' +
+        '</div>' +
+      '</div>' +
+      resultLine;
   }
 
   function renderHostFinalVote(vote, snap, showResult) {
@@ -1876,6 +2118,8 @@
       renderPlayerScoreboard(snap, false);
     } else if(stateName === "finished"){
       renderPlayerScoreboard(snap, true);
+    } else if(stateName === "grand_final_prompt_vote"){
+      renderPlayerGrandFinalPromptVote(snap);
     } else if(stateName === "paused"){
       els.playerTitle.textContent = "Пауза";
       els.playerSubtitle.textContent = "Хост поставил игру на паузу.";
@@ -1935,14 +2179,21 @@
       : "Дожидаемся owner-а — только он стартует.";
 
     if(leader){
+      var lobbyCtaHtml = '';
       if(enoughPlayers){
-        els.playerCtaRow.innerHTML = '<button class="cta" type="button" id="playerStartButton">Начать игру</button>';
-        var btn = document.getElementById("playerStartButton");
-        if(btn) btn.addEventListener("click", startGame);
+        lobbyCtaHtml += '<button class="cta" type="button" id="playerStartButton">Начать игру</button>';
       } else {
         var need = snap.minPlayersToStart - snap.players.length;
-        els.playerCtaRow.innerHTML = '<button class="cta" type="button" disabled>Жду игроков (ещё ' + need + ")</button>";
+        lobbyCtaHtml += '<button class="cta" type="button" disabled>Жду игроков (ещё ' + need + ')</button>';
       }
+      lobbyCtaHtml += '<button class="cta secondary" type="button" id="playerTestArenaButton" style="background:#800; border-color:#d00; color:#fff; margin-top:8px;">Тест: Арена Смерти</button>';
+      els.playerCtaRow.innerHTML = lobbyCtaHtml;
+      
+      var btn = document.getElementById("playerStartButton");
+      if(btn) btn.addEventListener("click", startGame);
+      
+      var testBtn = document.getElementById("playerTestArenaButton");
+      if(testBtn) testBtn.addEventListener("click", startTestArena);
     } else {
       els.playerCtaRow.innerHTML = "";
     }
@@ -1952,6 +2203,64 @@
       ? "Покажи QR друзьям, чтоб набралось как минимум 3 игрока."
       : "Пока ждём — собери себе персонажа.";
   }
+
+  function renderPlayerGrandFinalPromptVote(snap) {
+    var viewer = snap.viewer || {};
+    var votes = snap.tournament ? (snap.tournament.promptVotes || {}) : {};
+    var hasVoted = votes[state.clientId] !== undefined;
+    
+    els.playerTitle.textContent = "Выбор вопроса";
+    els.playerSubtitle.textContent = hasVoted ? "Ожидание остальных игроков..." : "Голосуй за лучший вопрос для финала!";
+    els.playerCtaRow.innerHTML = "";
+    els.playerMessage.hidden = true;
+    
+    if (hasVoted) {
+      els.playerCtaRow.innerHTML = '<p class="player-message player-wait" style="background:#200; border-color:#500; color:#fff;">Ваш голос принят. Ждём остальных...</p>';
+      return;
+    }
+    
+    var choices = snap.tournament ? (snap.tournament.grandFinalPromptChoices || []) : [];
+    var html = '<div style="display:flex; flex-direction:column; gap:12px; width:100%; margin-top:20px;">';
+    choices.forEach(function(c) {
+      html += '<button type="button" class="cta" style="font-size:16px; padding:15px 20px; white-space:normal; height:auto; text-align:left; background:rgba(30,0,0,0.8); border:2px solid #500; color:#fff; cursor:pointer;" onclick="window.voteGrandFinalPrompt(\'' + c.id + '\')">' +
+        escapeHtml(c.text) +
+      '</button>';
+    });
+    html += '</div>';
+    els.playerCtaRow.innerHTML = html;
+  }
+
+  window.voteGrandFinalPrompt = async function(choiceId) {
+    if(!state.roomId) return;
+    try{
+      await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/vote-final-prompt", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({clientId: state.clientId, choiceId: choiceId})
+      });
+    }catch(error){
+      alert(error.message || "Не удалось проголосовать за финальный вопрос");
+    }
+  };
+
+  window.submitSelectionAnswer = async function(answerText) {
+    var snap = state.room;
+    if(!snap || !snap.viewer || !snap.viewer.currentAssignment) return;
+    var pairId = snap.viewer.currentAssignment.pairId;
+    if(state.pendingSubmit) return;
+    state.pendingSubmit = pairId;
+    try{
+      await api("/api/klpp/room/" + encodeURIComponent(state.roomId) + "/answer", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({clientId: state.clientId, pairId: pairId, text: answerText})
+      });
+      klppAudio.answerSubmit();
+    }catch(error){
+      alert(error.message || "Не удалось отправить ответ");
+    }
+    state.pendingSubmit = null;
+  };
 
   function renderPlayerInterstitial(snap){
     els.playerTitle.textContent = snap.state === "launch" ? "Поехали!" : ("Раунд " + (snap.currentRound ? snap.currentRound.roundNumber : ""));
@@ -1968,7 +2277,214 @@
     var total = viewer.totalAssignments || 0;
     var done = Math.min(viewer.answeredCount || 0, total);
     els.playerCtaRow.innerHTML = "";
-    
+
+    if (assignment && assignment.isSelection) {
+      gfFormRendered = true;
+      els.playerAnswerForm.hidden = false;
+      var html = '<div class="selection-wrapper">';
+      html += '  <p class="answer-question" style="color:#ffdd44; font-weight:800; font-size:18px; margin-bottom:10px;">' + escapeHtml(assignment.questionText) + '</p>';
+      html += '  <p class="answer-meta" style="margin-bottom:15px; font-size:14px; opacity:0.8; text-align:center;">Выберите свой лучший ответ:</p>';
+      html += '  <div style="display:flex; flex-direction:column; gap:10px;" id="gfSelectionAnswersContainer"></div>';
+      html += '</div>';
+      els.playerAnswerForm.innerHTML = html;
+      
+      var container = document.getElementById("gfSelectionAnswersContainer");
+      if (container) {
+        var prevAnswers = assignment.previousAnswers || [];
+        if (prevAnswers.length === 0) {
+          prevAnswers = ["Без ответа"];
+        }
+        prevAnswers.forEach(function(ans) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "cta";
+          btn.style.cssText = "text-align:left; font-size:15px; padding:12px; white-space:normal; height:auto; background:rgba(30,0,0,0.8); border:2px solid #500; color:#fff; cursor:pointer;";
+          btn.textContent = ans;
+          btn.addEventListener("click", function() {
+            window.submitSelectionAnswer(ans);
+          });
+          container.appendChild(btn);
+        });
+      }
+      els.playerMessage.hidden = true;
+      return;
+    }
+
+    if (assignment && assignment.isGrandFinal) {
+      gfFormRendered = true;
+      els.playerAnswerForm.hidden = false;
+      
+      var html = '';
+      html += '<p class="answer-question" id="playerAnswerQuestion" style="color:#ffdd44; font-weight:800; font-size:18px;">' + escapeHtml(assignment.questionText) + '</p>';
+      html += '<p class="answer-meta" id="playerAnswerMeta"></p>';
+      
+      // Mode toggle bar
+      html += '<div class="klpp-toggle-bar" style="display:flex; margin-bottom:15px; border:2px solid #500; border-radius:10px; overflow:hidden;">';
+      html += '  <button type="button" id="gfModeTextBtn" class="toggle-btn active" style="flex:1; padding:10px; background:#800; color:#fff; border:0; font-weight:900; cursor:pointer;">Просто Текст</button>';
+      html += '  <button type="button" id="gfModeMemeBtn" class="toggle-btn" style="flex:1; padding:10px; background:#200; color:#888; border:0; font-weight:900; cursor:pointer;">Создать Мем</button>';
+      html += '</div>';
+      
+      // Standard Text Input Wrapper
+      html += '<div id="playerAnswerStandardWrapper">';
+      html += '  <label>';
+      html += '    <span class="sr">Твой ответ</span>';
+      html += '    <textarea id="playerAnswerInput" maxlength="220" placeholder="Напиши решающий ответ..." style="width:100%; min-height:80px; padding:10px 14px; border:3px solid #111; border-radius:12px; font-weight:800; font-size:16px; font-family:inherit;"></textarea>';
+      html += '  </label>';
+      html += '</div>';
+      
+      // Meme Input Wrapper
+      html += '<div id="playerAnswerMemeWrapper" hidden>';
+      // Meme templates selection
+      html += '  <div id="gfMemeTemplatesWrapper" style="margin-bottom:12px; text-align:left;">';
+      html += '    <span style="font-size:12px; font-weight:900; text-transform:uppercase; color:#fff; display:block; margin-bottom:6px;">Выберите шаблон мема:</span>';
+      html += '    <div style="display:flex; gap:10px; margin-bottom:10px;">';
+      html += '      <button type="button" class="meme-tpl-btn active" data-url="/klpp-assets/memes/cat.png" style="border:3px solid #f33; border-radius:8px; overflow:hidden; width:80px; height:80px; padding:0; background:#200; cursor:pointer;"><img src="/klpp-assets/memes/cat.png" style="width:100%; height:100%; object-fit:cover;"></button>';
+      html += '      <button type="button" class="meme-tpl-btn" data-url="/klpp-assets/memes/dog.png" style="border:2px solid #500; border-radius:8px; overflow:hidden; width:80px; height:80px; padding:0; background:#200; cursor:pointer;"><img src="/klpp-assets/memes/dog.png" style="width:100%; height:100%; object-fit:cover;"></button>';
+      html += '      <button type="button" id="gfCustomMemeBtn" style="border:2px dashed #888; border-radius:8px; width:80px; height:80px; background:rgba(0,0,0,0.5); color:#eee; font-weight:800; font-size:11px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:4px; cursor:pointer;">';
+      html += '        <span>📁</span>';
+      html += '        <span>Своё фото</span>';
+      html += '      </button>';
+      html += '    </div>';
+      html += '  </div>';
+      
+      // Meme Editor box
+      html += '  <div class="klpp-meme-container" style="margin-bottom:16px; max-width: 320px; margin-left: auto; margin-right: auto; position:relative; border:3px solid #111; border-radius:12px; overflow:hidden; aspect-ratio:1;">';
+      html += '    <img class="klpp-meme-image" id="playerAnswerMemeImage" src="/klpp-assets/memes/cat.png" style="width:100%; height:100%; object-fit:cover;">';
+      html += '    <div class="klpp-meme-text top" id="playerAnswerMemePreviewTop" style="position:absolute; top:10px; left:0; width:100%; text-align:center; color:#fff; font-size:24px; font-weight:900; text-shadow:-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; text-transform:uppercase; pointer-events:none;"></div>';
+      html += '    <div class="klpp-meme-text bottom" id="playerAnswerMemePreviewBottom" style="position:absolute; bottom:10px; left:0; width:100%; text-align:center; color:#fff; font-size:24px; font-weight:900; text-shadow:-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; text-transform:uppercase; pointer-events:none;"></div>';
+      html += '  </div>';
+      
+      // Input text boxes for meme
+      html += '  <label style="margin-bottom:12px; display:block; text-align:left;">';
+      html += '    <span style="font-size:12px; font-weight:900; text-transform:uppercase; color:#fff; display:block; margin-bottom:4px;">Верхний текст</span>';
+      html += '    <input type="text" id="playerAnswerMemeTop" placeholder="Верхний текст мема" maxlength="60" style="width:100%; padding:10px 14px; border:3px solid #111; border-radius:12px; font-weight:800; font-size:16px; font-family:inherit;">';
+      html += '  </label>';
+      html += '  <label style="margin-bottom:12px; display:block; text-align:left;">';
+      html += '    <span style="font-size:12px; font-weight:900; text-transform:uppercase; color:#fff; display:block; margin-bottom:4px;">Нижний текст</span>';
+      html += '    <input type="text" id="playerAnswerMemeBottom" placeholder="Нижний текст мема" maxlength="60" style="width:100%; padding:10px 14px; border:3px solid #111; border-radius:12px; font-weight:800; font-size:16px; font-family:inherit;">';
+      html += '  </label>';
+      html += '</div>';
+      
+      html += '<div class="answer-hint" id="playerAnswerHint" hidden></div>';
+      html += '<div class="cta-row">';
+      html += '  <button class="cta" type="submit" id="playerAnswerSubmit">Отправить</button>';
+      html += '</div>';
+
+      els.playerAnswerForm.innerHTML = html;
+      
+      // Re-cache dynamic inputs so validations work
+      els.playerAnswerSubmit = id("playerAnswerSubmit");
+      els.playerAnswerMeta = id("playerAnswerMeta");
+      els.playerAnswerHint = id("playerAnswerHint");
+      
+      // Wire handlers
+      function wireGfInputHandlers() {
+        var textBtn = id("gfModeTextBtn");
+        var memeBtn = id("gfModeMemeBtn");
+        var stdWrapper = id("playerAnswerStandardWrapper");
+        var memeWrapper = id("playerAnswerMemeWrapper");
+        
+        textBtn.addEventListener("click", function() {
+          textBtn.className = "toggle-btn active";
+          textBtn.style.background = "#800";
+          textBtn.style.color = "#fff";
+          memeBtn.className = "toggle-btn";
+          memeBtn.style.background = "#200";
+          memeBtn.style.color = "#888";
+          
+          if(stdWrapper) stdWrapper.hidden = false;
+          if(memeWrapper) memeWrapper.hidden = true;
+        });
+        
+        memeBtn.addEventListener("click", function() {
+          memeBtn.className = "toggle-btn active";
+          memeBtn.style.background = "#800";
+          memeBtn.style.color = "#fff";
+          textBtn.className = "toggle-btn";
+          textBtn.style.background = "#200";
+          textBtn.style.color = "#888";
+          
+          if(stdWrapper) stdWrapper.hidden = true;
+          if(memeWrapper) memeWrapper.hidden = false;
+        });
+
+        // Preset templates click
+        var tplBtns = document.querySelectorAll(".meme-tpl-btn");
+        tplBtns.forEach(function(btn) {
+          btn.addEventListener("click", function() {
+            tplBtns.forEach(function(b) { b.style.borderColor = "#500"; b.classList.remove("active"); });
+            btn.style.borderColor = "#f33";
+            btn.classList.add("active");
+            var url = btn.getAttribute("data-url");
+            var memeImg = id("playerAnswerMemeImage");
+            if (memeImg) memeImg.src = url;
+          });
+        });
+
+        // Custom upload click
+        var customBtn = id("gfCustomMemeBtn");
+        if (customBtn) {
+          customBtn.addEventListener("click", function() {
+            var input = document.createElement("input");
+            input.type = "file";
+            input.accept = "image/*";
+            input.onchange = async function() {
+              var file = input.files[0];
+              if(!file) return;
+              try {
+                var url = await uploadMemeImage(file);
+                var memeImg = id("playerAnswerMemeImage");
+                if (memeImg) memeImg.src = url;
+                
+                // Clear active states of preset buttons
+                tplBtns.forEach(function(b) { b.style.borderColor = "#500"; b.classList.remove("active"); });
+              } catch(e) {
+                alert("Ошибка загрузки: " + e.message);
+              }
+            };
+            input.click();
+          });
+        }
+
+        // Live preview top text
+        var topInput = id("playerAnswerMemeTop");
+        if(topInput){
+          topInput.addEventListener("input", function(){
+            var preview = id("playerAnswerMemePreviewTop");
+            if(preview) preview.textContent = topInput.value.toUpperCase();
+          });
+        }
+
+        // Live preview bottom text
+        var bottomInput = id("playerAnswerMemeBottom");
+        if(bottomInput){
+          bottomInput.addEventListener("input", function(){
+            var preview = id("playerAnswerMemePreviewBottom");
+            if(preview) preview.textContent = bottomInput.value.toUpperCase();
+          });
+        }
+      }
+      wireGfInputHandlers();
+      els.playerMessage.hidden = true;
+      return;
+    }
+
+    if (gfFormRendered) {
+      els.playerAnswerForm.innerHTML = originalPlayerAnswerFormHtml;
+      gfFormRendered = false;
+      
+      // Re-cache DOM elements
+      els.playerAnswerQuestion = id("playerAnswerQuestion");
+      els.playerAnswerMeta = id("playerAnswerMeta");
+      els.playerAnswerInput = id("playerAnswerInput");
+      els.playerAnswerSubmit = id("playerAnswerSubmit");
+      els.playerAnswerHint = id("playerAnswerHint");
+      
+      if(els.playerAnswerInput){
+        els.playerAnswerInput.addEventListener("input", validateLocalAnswerInput);
+      }
+    }
+
     // Ability Activation Widget (Option V)
     var abilityDefs = {
       freeze_timer: { name: "Заморозка времени", icon: "❄️", desc: "Добавить +25 секунд к таймеру ответов раунда" },
@@ -2059,6 +2575,118 @@
     var viewer = snap.viewer;
     var vote = viewer.vote;
     if(!vote){ els.playerVoteList.innerHTML = ""; return; }
+
+    if (vote.isTournamentMatch) {
+      els.playerTitle.textContent = "Смертельный бой!";
+      els.playerSubtitle.textContent = vote.questionText;
+      els.playerCtaRow.innerHTML = "";
+      els.playerMessage.hidden = true;
+
+      var leftChosen = vote.chosenClientId === vote.leftClientId || state.lastChosenVote === vote.leftClientId;
+      var rightChosen = vote.chosenClientId === vote.rightClientId || state.lastChosenVote === vote.rightClientId;
+
+      var leftContentHtml = "";
+      if (vote.leftMemeImageUrl) {
+        leftContentHtml = '<img src="' + escapeHtml(vote.leftMemeImageUrl) + '" style="max-height:100px; object-fit:contain; border-radius:6px; margin:5px 0; display:block; margin-left:auto; margin-right:auto;">';
+      } else {
+        leftContentHtml = '<p style="font-size: 16px; font-weight: 800; margin: 6px 0;">«' + escapeHtml(vote.leftText) + '»</p>';
+      }
+
+      var rightContentHtml = "";
+      if (vote.rightMemeImageUrl) {
+        rightContentHtml = '<img src="' + escapeHtml(vote.rightMemeImageUrl) + '" style="max-height:100px; object-fit:contain; border-radius:6px; margin:5px 0; display:block; margin-left:auto; margin-right:auto;">';
+      } else {
+        rightContentHtml = '<p style="font-size: 16px; font-weight: 800; margin: 6px 0;">«' + escapeHtml(vote.rightText) + '»</p>';
+      }
+
+      var leftLabel = leftChosen ? "Твой выбор 👍" : (vote.isAuthor ? "Игрок А" : "Выбрать игрока А");
+      var rightLabel = rightChosen ? "Твой выбор 👍" : (vote.isAuthor ? "Игрок Б" : "Выбрать игрока Б");
+
+      var leftDisabledAttr = (!vote.canVote || vote.isAuthor || leftChosen) ? " disabled" : "";
+      var rightDisabledAttr = (!vote.canVote || vote.isAuthor || rightChosen) ? " disabled" : "";
+
+      var listHtml = "";
+      listHtml += '<button class="vote-card" type="button" id="gfVoteLeftBtn"' + leftDisabledAttr + (leftChosen ? ' data-chosen="true"' : '') + '>';
+      listHtml += '  <strong>' + leftLabel + '</strong>';
+      listHtml += '  ' + leftContentHtml;
+      listHtml += '</button>';
+
+      listHtml += '<button class="vote-card" type="button" id="gfVoteRightBtn"' + rightDisabledAttr + (rightChosen ? ' data-chosen="true"' : '') + '>';
+      listHtml += '  <strong>' + rightLabel + '</strong>';
+      listHtml += '  ' + rightContentHtml;
+      listHtml += '</button>';
+
+      // Betting widget (Тотализатор)
+      if (!vote.isAuthor) {
+        var myScore = snap.scoreboard[state.clientId] || 0;
+        var maxBet = myScore > 0 ? myScore : 100;
+        var currentBet = vote.bet;
+        
+        listHtml += '<div style="margin-top:20px; background:rgba(30,0,0,0.8); border:2px solid #500; border-radius:12px; padding:15px; text-align:left; color:#fff; width:100%; box-sizing:border-box;">';
+        listHtml += '  <div style="font-weight:900; font-size:15px; color:#ff5555; margin-bottom:8px; text-transform:uppercase;">💰 ТОТАЛИЗАТОР (СТАВКИ)</div>';
+        listHtml += '  <div style="font-size:12px; color:#ccc; margin-bottom:12px;">Поставь очки на победителя дуэли! У тебя есть: <strong>' + myScore + ' очков</strong>.</div>';
+        
+        if (currentBet) {
+          var targetName = currentBet.targetClientId === vote.leftClientId ? "Игрок А" : "Игрок Б";
+          listHtml += '  <div style="font-size:14px; font-weight:800; color:#28a745; text-align:center; padding:10px; background:rgba(0,0,0,0.4); border-radius:8px;">Ваша ставка: ' + currentBet.amount + ' на ' + targetName + ' принята!</div>';
+        } else {
+          listHtml += '  <div style="display:flex; flex-direction:column; gap:10px;">';
+          
+          listHtml += '    <div style="display:flex; gap:8px; align-items:center;">';
+          listHtml += '      <span style="font-size:12px; font-weight:800; min-width:80px; color:#fff;">На кого:</span>';
+          listHtml += '      <select id="gfBetTarget" style="flex:1; padding:8px; border:2px solid #111; border-radius:8px; background:#fff; color:#000; font-weight:700; font-family:inherit;">';
+          listHtml += '        <option value="' + vote.leftClientId + '">Игрок А</option>';
+          listHtml += '        <option value="' + vote.rightClientId + '">Игрок Б</option>';
+          listHtml += '      </select>';
+          listHtml += '    </div>';
+          
+          listHtml += '    <div style="display:flex; gap:8px; align-items:center;">';
+          listHtml += '      <span style="font-size:12px; font-weight:800; min-width:80px; color:#fff;">Размер:</span>';
+          listHtml += '      <div style="display:flex; gap:6px; flex:1; flex-wrap:wrap;" id="gfBetAmounts">';
+          var betOptions = [50, 100, 200, 500].filter(function(a){ return a <= maxBet; });
+          if (betOptions.length === 0) betOptions = [maxBet];
+          betOptions.forEach(function(amount) {
+            listHtml += '      <button type="button" class="cta small-pill gf-bet-btn" data-amount="' + amount + '" style="padding:6px 12px; font-size:12px; height:auto; width:auto; display:inline-block; margin:2px;">' + amount + '</button>';
+          });
+          listHtml += '      </div>';
+          listHtml += '    </div>';
+          
+          listHtml += '  </div>';
+        }
+        listHtml += '</div>';
+      }
+
+      els.playerVoteList.innerHTML = listHtml;
+
+      // Event listeners
+      var leftBtn = id("gfVoteLeftBtn");
+      if (leftBtn && !leftBtn.disabled) {
+        leftBtn.addEventListener("click", function() {
+          submitVote(vote.leftClientId);
+        });
+      }
+      var rightBtn = id("gfVoteRightBtn");
+      if (rightBtn && !rightBtn.disabled) {
+        rightBtn.addEventListener("click", function() {
+          submitVote(vote.rightClientId);
+        });
+      }
+
+      // Bet buttons
+      var betBtns = els.playerVoteList.querySelectorAll(".gf-bet-btn");
+      betBtns.forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          var amount = Number(btn.getAttribute("data-amount"));
+          var targetSelect = id("gfBetTarget");
+          var targetClientId = targetSelect ? targetSelect.value : "";
+          if (targetClientId && amount > 0) {
+            submitBet(targetClientId, amount);
+          }
+        });
+      });
+
+      return;
+    }
 
     if(vote.type === "final_lash" || vote.type === "meme_round"){
       els.playerTitle.textContent = vote.type === "meme_round" ? "Выбери лучший мем!" : "Смертельный бой!";
@@ -2213,6 +2841,20 @@
       var streak = state.comboStreaks[myClientId] || 0;
       if(streak >= 2) myStreakHtml = ' <span class="klpp-combo-badge">🔥×' + streak + '</span>';
     }
+    var betInfoHtml = "";
+    if (r.betsResolved) {
+      var myBet = r.betsResolved.find(function(b) {
+        return b.nickname === snap.viewer.nickname;
+      });
+      if (myBet) {
+        var sign = myBet.won ? "+" : "-";
+        var color = myBet.won ? "#28a745" : "#ff3b3b";
+        betInfoHtml = '<div style="margin-top:15px; padding:10px; border-radius:8px; background:rgba(0,0,0,0.5); font-weight:800; font-size:14px; text-align:center; color:#fff;">' +
+          'Результат ставки: <span style="color:' + color + ';">' + sign + myBet.amount + ' очков</span>' +
+          '</div>';
+      }
+    }
+
     els.playerScoreboard.innerHTML =
       '<div class="score-row' + (r.leftPercent >= r.rightPercent ? " winner" : "") + '">' +
         '<span class="score-name">' + leftName + (iAmLeft ? myStreakHtml : "") + '</span>' +
@@ -2221,7 +2863,8 @@
       '<div class="score-row' + (r.rightPercent > r.leftPercent ? " winner" : "") + '">' +
         '<span class="score-name">' + rightName + (iAmRight ? myStreakHtml : "") + '</span>' +
         '<span class="score-value">' + r.rightPercent + "% · +" + r.rightScoreDelta + "</span>" +
-      '</div>';
+      '</div>' +
+      betInfoHtml;
     state.lastChosenVote = "";
   }
 

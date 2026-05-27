@@ -1144,88 +1144,125 @@ function setupKlppRound(room){
   const isFinalRound = (nextRoundNumber === room.settings.roundCount);
 
   if(isFinalRound){
-    const finalType = room.settings.finalRoundType || "final_lash";
-    let selectedFinalType = finalType;
-    if(finalType === "random"){
-      selectedFinalType = Math.random() > 0.5 ? "final_lash" : "meme_round";
+    const prompts = takeKlppFinalQuestions(room, 5);
+    
+    // Spawning bots to pad to the next power of 2
+    const players = listKlppPlayers(room);
+    const N = players.length;
+    let P = 4;
+    while(P < N) {
+      P *= 2;
     }
-
+    
+    if(N < P) {
+      const numBotsNeeded = P - N;
+      const unusedBotNames = ["Гена-Skynet", "Нейро-Зина", "GPT-Семён", "АвтоТаня", "Бот-Анон", "Robo-Лёха", "Бот-Маша", "ИИ-Витя"].filter(function(name){
+        return !players.find(p => p.nickname === name);
+      });
+      const botColors = ["#ff6b6b","#4d96ff","#6bcb77","#ffd93d","#b388ff","#ff9f1c","#ff6f91","#00c2a8"];
+      const botFaces = ["smile","cool","nerd","sleepy","clown","alien","robot","mustache"];
+      
+      for(let i = 0; i < numBotsNeeded; i++) {
+        const botId = "bot_temp_" + Math.random().toString(36).substr(2, 5);
+        const nickname = unusedBotNames[i % unusedBotNames.length] || ("Бот-" + (i + 1));
+        const color = botColors[Math.floor(Math.random() * botColors.length)];
+        const face = botFaces[Math.floor(Math.random() * botFaces.length)];
+        
+        const tempBot = {
+          clientId: botId,
+          nickname: nickname,
+          avatar: { color: color, face: face },
+          joinedAt: Date.now() + i,
+          isBot: true,
+          isTempBot: true
+        };
+        
+        room.players.push(tempBot);
+        room.scoreboard[botId] = 0;
+        
+        if(!room.playerAnswers) room.playerAnswers = {};
+        room.playerAnswers[botId] = [
+          klppRandomBotAnswer(),
+          klppRandomBotAnswer(),
+          klppRandomBotAnswer()
+        ];
+      }
+    }
+    
+    const finalPlayers = listKlppPlayers(room);
+    const shuffledPlayers = shuffleKlpp(finalPlayers.map(p => p.clientId));
+    const numStages = Math.log2(P);
+    const stages = [];
+    
+    for (let s = 0; s < numStages; s++) {
+      const numMatches = P / Math.pow(2, s + 1);
+      const matches = [];
+      for (let m = 0; m < numMatches; m++) {
+        matches.push({
+          id: "s" + s + "_m" + m,
+          p1: null,
+          p2: null,
+          p1Answer: null,
+          p2Answer: null,
+          p1MemeImageUrl: null,
+          p2MemeImageUrl: null,
+          winner: null,
+          votes: {},
+          bets: {}
+        });
+      }
+      stages.push(matches);
+    }
+    
+    const stage0 = stages[0];
+    let pIdx = 0;
+    for (let m = 0; m < stage0.length; m++) {
+      stage0[m].p1 = shuffledPlayers[pIdx++];
+      stage0[m].p2 = shuffledPlayers[pIdx++];
+      stage0[m].questionText = prompts[0];
+    }
+    
+    room.tournament = {
+      stageIndex: 0,
+      activeMatchIndex: 0,
+      stages: stages,
+      questions: prompts,
+      grandFinalPromptChoices: [],
+      promptVotes: {}
+    };
+    
     const assignmentsByPlayer = {};
-    listKlppPlayers(room).forEach(function(player){
-      assignmentsByPlayer[player.clientId] = [];
-    });
-
-    let roundPairs = [];
-    let introText = "";
-
-    if(selectedFinalType === "meme_round"){
-      const memes = takeKlppMemes(room, 1);
-      const meme = memes[0] || KLPP_DEFAULT_MEMES[0];
-      const pairId = "meme-lash";
-      const baseAssignment = {
-        pairId: pairId,
-        questionText: meme.name,
-        memeImageUrl: meme.url,
+    finalPlayers.forEach(function(player){
+      assignmentsByPlayer[player.clientId] = [{
+        pairId: "tournament-s0",
+        questionText: prompts[0],
         hintText: null,
         opponentClientId: null,
         answerText: "",
         submittedAt: 0,
-        status: "pending"
-      };
-      listKlppPlayers(room).forEach(function(player){
-        assignmentsByPlayer[player.clientId].push(clone(baseAssignment));
-      });
-      roundPairs = [{
-        pairId: pairId,
-        questionText: meme.name,
-        memeImageUrl: meme.url,
-        hintText: null,
-        players: listKlppPlayers(room).map(function(p){ return p.clientId; }),
-        baseKey: "meme-lash"
+        status: "pending",
+        order: 0,
+        isSelection: true,
+        previousAnswers: room.playerAnswers[player.clientId] || []
       }];
-      introText = "Финальный раунд: МЕМ-РАУНД! Придумай смешной текст к картинке.";
-    } else {
-      const prompts = takeKlppFinalQuestions(room, 1);
-      const promptText = prompts[0] || "Самое неподходящее место для романтического признания.";
-      const pairId = "final-lash";
-      const baseAssignment = {
-        pairId: pairId,
-        questionText: promptText,
-        hintText: null,
-        opponentClientId: null,
-        answerText: "",
-        submittedAt: 0,
-        status: "pending"
-      };
-      listKlppPlayers(room).forEach(function(player){
-        assignmentsByPlayer[player.clientId].push(clone(baseAssignment));
-      });
-      roundPairs = [{
-        pairId: pairId,
-        questionText: promptText,
-        hintText: null,
-        players: listKlppPlayers(room).map(function(p){ return p.clientId; }),
-        baseKey: "final-lash"
-      }];
-      introText = "Финальный раунд: СМЕРТЕЛЬНЫЙ БОЙ! Один вопрос для всех.";
-    }
-
-    Object.keys(assignmentsByPlayer).forEach(function(clientId){
-      assignmentsByPlayer[clientId].forEach(function(item, index){
-        item.order = index;
-      });
     });
-
+    
     room.currentRound = {
-      type: selectedFinalType,
+      type: "final_lash",
       roundNumber: nextRoundNumber,
-      pairs: roundPairs,
+      pairs: [{
+        pairId: "tournament-s0",
+        questionText: prompts[0],
+        players: finalPlayers.map(p => p.clientId),
+        baseKey: "tournament-s0"
+      }],
       assignmentsByPlayer: assignmentsByPlayer,
       voteQueue: [],
       currentVoteIndex: 0,
-      introText: introText,
+      introText: "КРОВАВАЯ АРЕНА СМЕРТИ! Турнир начинается.",
       modifiers: []
     };
+    
     room.roundIndex = nextRoundNumber;
     room.lastRoundResult = null;
     room.endedWithoutScore = false;
@@ -1376,6 +1413,7 @@ function startKlppGame(room){
     room.scoreboard[player.clientId] = 0;
   });
   room.history = [];
+  room.playerAnswers = {};
   room.questionHistory = [];
   room.pairHistory = [];
   room.roundIndex = 0;
@@ -1418,29 +1456,53 @@ function fillKlppMissingAnswers(room){
 function buildKlppVoteQueue(room){
   if(!room.currentRound) return;
 
-  if(room.currentRound.type === "final_lash" || room.currentRound.type === "meme_round"){
-    const pair = room.currentRound.pairs[0];
-    const answers = listKlppPlayers(room).map(function(player){
-      const assList = room.currentRound.assignmentsByPlayer[player.clientId] || [];
-      const ass = assList.find(function(item){ return item.pairId === pair.pairId; });
+  if (room.tournament) {
+    const stageIndex = room.tournament.stageIndex;
+    const currentStageMatches = room.tournament.stages[stageIndex];
+    
+    currentStageMatches.forEach(function(match) {
+      if (match.p1) {
+        const ass = (room.currentRound.assignmentsByPlayer[match.p1] || []).find(a => a.status === "answered" || a.status === "missed");
+        match.p1Answer = ass ? ass.answerText : KLPP_NO_ANSWER_TEXT;
+        match.p1MemeImageUrl = ass ? (ass.memeImageUrl || null) : null;
+      }
+      if (match.p2) {
+        const ass = (room.currentRound.assignmentsByPlayer[match.p2] || []).find(a => a.status === "answered" || a.status === "missed");
+        match.p2Answer = ass ? ass.answerText : KLPP_NO_ANSWER_TEXT;
+        match.p2MemeImageUrl = ass ? (ass.memeImageUrl || null) : null;
+      }
+    });
+    
+    room.currentRound.voteQueue = currentStageMatches.map(function(match, mIndex) {
+      const swap = Math.random() > 0.5;
+      const leftId = swap ? match.p2 : match.p1;
+      const rightId = swap ? match.p1 : match.p2;
+      const leftText = swap ? match.p2Answer : match.p1Answer;
+      const rightText = swap ? match.p1Answer : match.p2Answer;
+      const leftMeme = swap ? match.p2MemeImageUrl : match.p1MemeImageUrl;
+      const rightMeme = swap ? match.p1MemeImageUrl : match.p2MemeImageUrl;
+      
       return {
-        clientId: player.clientId,
-        nickname: player.nickname,
-        avatar: player.avatar,
-        answerText: ass && ass.status === "answered" ? ass.answerText : KLPP_NO_ANSWER_TEXT,
-        missing: !ass || ass.status !== "answered"
+        pairId: match.id,
+        type: "final_lash",
+        questionText: match.questionText || room.tournament.questions[stageIndex],
+        leftClientId: leftId,
+        rightClientId: rightId,
+        leftText: leftText,
+        rightText: rightText,
+        leftMemeImageUrl: leftMeme || null,
+        rightMemeImageUrl: rightMeme || null,
+        leftMissing: leftText === KLPP_NO_ANSWER_TEXT,
+        rightMissing: rightText === KLPP_NO_ANSWER_TEXT,
+        votes: {},
+        bets: {},
+        result: null,
+        isTournamentMatch: true,
+        matchId: match.id,
+        stageIndex: stageIndex,
+        matchIndex: mIndex
       };
     });
-
-    room.currentRound.voteQueue = [{
-      pairId: pair.pairId,
-      type: room.currentRound.type,
-      questionText: pair.questionText,
-      memeImageUrl: pair.memeImageUrl || null,
-      answers: shuffleKlpp(answers),
-      votes: {},
-      result: null
-    }];
     room.currentRound.currentVoteIndex = 0;
     return;
   }
@@ -1495,6 +1557,134 @@ function finalizeKlppVote(room){
 
   const isLastRound = (room.roundIndex || 0) >= (room.settings.roundCount || 5);
   const nameMap = new Map(listKlppPlayers(room).map(function(player){ return [player.clientId, player.nickname]; }));
+
+  if(room.tournament && vote.isTournamentMatch){
+    const voteCounts = {};
+    const voterMap = {};
+    voteCounts[vote.leftClientId] = 0;
+    voteCounts[vote.rightClientId] = 0;
+    voterMap[vote.leftClientId] = [];
+    voterMap[vote.rightClientId] = [];
+
+    Object.keys(vote.votes || {}).forEach(function(voterId){
+      const targetId = vote.votes[voterId];
+      if(voteCounts[targetId] !== undefined){
+        voteCounts[targetId] += 1;
+        voterMap[targetId].push(nameMap.get(voterId) || "Игрок");
+      }
+    });
+
+    const leftVotes = voteCounts[vote.leftClientId];
+    const rightVotes = voteCounts[vote.rightClientId];
+    const totalVotes = leftVotes + rightVotes;
+    
+    let leftPercent = 0;
+    let rightPercent = 0;
+    if (totalVotes > 0) {
+      leftPercent = Math.round((leftVotes / totalVotes) * 100);
+      rightPercent = 100 - leftPercent;
+    } else {
+      leftPercent = 50;
+      rightPercent = 50;
+    }
+
+    const votePointsPerVote = (room.settings.doublePointsLastRound && isLastRound) ? 300 : 150;
+    let leftScoreDelta = leftVotes * votePointsPerVote;
+    let rightScoreDelta = rightVotes * votePointsPerVote;
+
+    let winnerId = null;
+    let loserId = null;
+    if (vote.leftMissing && !vote.rightMissing) {
+      winnerId = vote.rightClientId;
+      loserId = vote.leftClientId;
+    } else if (!vote.leftMissing && vote.rightMissing) {
+      winnerId = vote.leftClientId;
+      loserId = vote.rightClientId;
+    } else if (vote.leftMissing && vote.rightMissing) {
+      winnerId = vote.leftClientId;
+      loserId = vote.rightClientId;
+    } else {
+      if (leftVotes > rightVotes) {
+        winnerId = vote.leftClientId;
+        loserId = vote.rightClientId;
+      } else if (rightVotes > leftVotes) {
+        winnerId = vote.rightClientId;
+        loserId = vote.leftClientId;
+      } else {
+        const leftWins = Math.random() > 0.5;
+        winnerId = leftWins ? vote.leftClientId : vote.rightClientId;
+        loserId = leftWins ? vote.rightClientId : vote.leftClientId;
+      }
+    }
+
+    const stage = room.tournament.stages[vote.stageIndex];
+    const match = stage ? stage[vote.matchIndex] : null;
+    if (match) {
+      match.winner = winnerId;
+      
+      const nextStageIndex = vote.stageIndex + 1;
+      if (nextStageIndex < room.tournament.stages.length) {
+        const nextMatchIndex = Math.floor(vote.matchIndex / 2);
+        const nextMatch = room.tournament.stages[nextStageIndex][nextMatchIndex];
+        if (nextMatch) {
+          if (vote.matchIndex % 2 === 0) {
+            nextMatch.p1 = winnerId;
+          } else {
+            nextMatch.p2 = winnerId;
+          }
+        }
+      }
+    }
+
+    const bonus = (vote.stageIndex + 1) * 300;
+    
+    room.scoreboard[vote.leftClientId] = Math.max(0, (room.scoreboard[vote.leftClientId] || 0) + leftScoreDelta + (winnerId === vote.leftClientId ? bonus : 0));
+    room.scoreboard[vote.rightClientId] = Math.max(0, (room.scoreboard[vote.rightClientId] || 0) + rightScoreDelta + (winnerId === vote.rightClientId ? bonus : 0));
+
+    const betsResolved = [];
+    Object.keys(vote.bets || {}).forEach(function(voterId) {
+      const bet = vote.bets[voterId];
+      if (!bet) return;
+      const won = bet.targetClientId === winnerId;
+      if (won) {
+        room.scoreboard[voterId] = (room.scoreboard[voterId] || 0) + bet.amount;
+      } else {
+        room.scoreboard[voterId] = Math.max(0, (room.scoreboard[voterId] || 0) - bet.amount);
+      }
+      betsResolved.push({
+        nickname: nameMap.get(voterId) || "Игрок",
+        amount: bet.amount,
+        won: won,
+        targetNickname: nameMap.get(bet.targetClientId) || "Игрок"
+      });
+    });
+
+    vote.result = {
+      leftClientId: vote.leftClientId,
+      rightClientId: vote.rightClientId,
+      leftNickname: nameMap.get(vote.leftClientId) || "Игрок",
+      rightNickname: nameMap.get(vote.rightClientId) || "Игрок",
+      leftVotes: leftVotes,
+      rightVotes: rightVotes,
+      leftPercent: leftPercent,
+      rightPercent: rightPercent,
+      leftScoreDelta: leftScoreDelta + (winnerId === vote.leftClientId ? bonus : 0),
+      rightScoreDelta: rightScoreDelta + (winnerId === vote.rightClientId ? bonus : 0),
+      winnerId: winnerId,
+      loserId: loserId,
+      bonus: bonus,
+      isTournamentMatch: true,
+      stageIndex: vote.stageIndex,
+      matchId: vote.id,
+      doublePoints: Boolean(room.settings.doublePointsLastRound && isLastRound),
+      leftVoters: voterMap[vote.leftClientId],
+      rightVoters: voterMap[vote.rightClientId],
+      betsResolved: betsResolved
+    };
+
+    setKlppState(room, "vote_result");
+    return;
+  }
 
   if(vote.type === "final_lash" || vote.type === "meme_round"){
     const voteCounts = {};
@@ -1670,6 +1860,56 @@ function finalizeKlppRound(room){
   setKlppState(room, "round_score");
 }
 
+function finalizeGrandFinalPromptVote(room) {
+  if (!room.tournament) return;
+  const counts = { p0: 0, p1: 0, p2: 0 };
+  Object.keys(room.tournament.promptVotes || {}).forEach(function(voterId) {
+    const choiceId = room.tournament.promptVotes[voterId];
+    if (counts[choiceId] !== undefined) counts[choiceId] += 1;
+  });
+  const choices = room.tournament.grandFinalPromptChoices || [];
+  let winningChoice = choices[0];
+  let maxVotes = -1;
+  choices.forEach(function(c) {
+    const vc = counts[c.id] || 0;
+    if (vc > maxVotes) {
+      maxVotes = vc;
+      winningChoice = c;
+    } else if (vc === maxVotes && Math.random() > 0.5) {
+      winningChoice = c;
+    }
+  });
+  const gfQuestion = winningChoice ? winningChoice.text : "Смертельный бой: Финальный поединок!";
+  const gfStageIndex = room.tournament.stages.length - 1;
+  const gfMatch = room.tournament.stages[gfStageIndex][0];
+  gfMatch.questionText = gfQuestion;
+  
+  const assignmentsByPlayer = {};
+  [gfMatch.p1, gfMatch.p2].forEach(function(clientId) {
+    if (!clientId) return;
+    assignmentsByPlayer[clientId] = [{
+      pairId: gfMatch.id,
+      questionText: gfQuestion,
+      hintText: null,
+      opponentClientId: clientId === gfMatch.p1 ? gfMatch.p2 : gfMatch.p1,
+      answerText: "",
+      submittedAt: 0,
+      status: "pending",
+      order: 0,
+      isGrandFinal: true,
+      previousAnswers: room.playerAnswers[clientId] || []
+    }];
+  });
+  room.currentRound.assignmentsByPlayer = assignmentsByPlayer;
+  room.currentRound.pairs = [{
+    pairId: gfMatch.id,
+    questionText: gfQuestion,
+    players: [gfMatch.p1, gfMatch.p2].filter(Boolean),
+    baseKey: gfMatch.id
+  }];
+  setKlppState(room, "answer");
+}
+
 function moveKlppToNextVoteOrScore(room){
   if(!room.currentRound){
     finalizeKlppRound(room);
@@ -1680,6 +1920,75 @@ function moveKlppToNextVoteOrScore(room){
     setKlppState(room, "vote");
     return;
   }
+  
+  if (room.tournament) {
+    const numStages = room.tournament.stages.length;
+    const stageIndex = room.tournament.stageIndex;
+    
+    if (stageIndex === numStages - 1) {
+      // Grand Final is over! Clean up temp bots
+      room.players = room.players.filter(p => !p.isTempBot);
+      Object.keys(room.scoreboard).forEach(clientId => {
+        if (!room.players.find(p => p.clientId === clientId)) {
+          delete room.scoreboard[clientId];
+        }
+      });
+      finalizeKlppRound(room);
+      return;
+    }
+    
+    const nextStageIndex = stageIndex + 1;
+    room.tournament.stageIndex = nextStageIndex;
+    
+    if (nextStageIndex === numStages - 1) {
+      // Transition to Grand Final prompt vote
+      const gfPrompts = takeKlppFinalQuestions(room, 3);
+      room.tournament.grandFinalPromptChoices = gfPrompts.map((p, idx) => ({ id: "p" + idx, text: p }));
+      room.tournament.promptVotes = {};
+      
+      setKlppState(room, "grand_final_prompt_vote");
+    } else {
+      // Intermediate stage selection
+      const nextQuestion = room.tournament.questions[nextStageIndex] || "Смертельный бой: Поединок!";
+      const nextStageMatches = room.tournament.stages[nextStageIndex];
+      
+      nextStageMatches.forEach(m => { m.questionText = nextQuestion; });
+      
+      const advancingPlayers = [];
+      nextStageMatches.forEach(m => {
+        if (m.p1) advancingPlayers.push(m.p1);
+        if (m.p2) advancingPlayers.push(m.p2);
+      });
+      
+      const assignmentsByPlayer = {};
+      advancingPlayers.forEach(function(clientId) {
+        assignmentsByPlayer[clientId] = [{
+          pairId: "tournament-s" + nextStageIndex,
+          questionText: nextQuestion,
+          hintText: null,
+          opponentClientId: null,
+          answerText: "",
+          submittedAt: 0,
+          status: "pending",
+          order: 0,
+          isSelection: true,
+          previousAnswers: room.playerAnswers[clientId] || []
+        }];
+      });
+      
+      room.currentRound.assignmentsByPlayer = assignmentsByPlayer;
+      room.currentRound.pairs = [{
+        pairId: "tournament-s" + nextStageIndex,
+        questionText: nextQuestion,
+        players: advancingPlayers,
+        baseKey: "tournament-s" + nextStageIndex
+      }];
+      
+      setKlppState(room, "answer");
+    }
+    return;
+  }
+  
   finalizeKlppRound(room);
 }
 
@@ -1705,6 +2014,10 @@ function tickKlppRoom(room){
     setKlppState(room, "round_intro");
   }else if(room.state === "round_intro" && elapsed >= KLPP_ROUND_INTRO_MS){
     setKlppState(room, "answer");
+  }else if(room.state === "grand_final_prompt_vote"){
+    if(elapsed >= 15000){
+      finalizeGrandFinalPromptVote(room);
+    }
   }else if(room.state === "answer"){
     if(areKlppAnswersComplete(room) || elapsed >= room.settings.answerSeconds * 1000){
       beginKlppVoting(room);
@@ -1827,7 +2140,10 @@ function klppViewerAssignments(room, clientId){
       status: item.status,
       answerText: item.status === "answered" ? item.answerText : "",
       submittedAt: item.submittedAt || 0,
-      order: item.order || 0
+      order: item.order || 0,
+      isSelection: Boolean(item.isSelection),
+      isGrandFinal: Boolean(item.isGrandFinal),
+      previousAnswers: item.previousAnswers || []
     };
   });
 }
@@ -1861,7 +2177,10 @@ function klppViewerCurrentAssignment(room, clientId){
     isReverse: isReverse,
     opponentClientId: pending.opponentClientId,
     order: pending.order || 0,
-    spyOpponentAnswer: spyOpponentAnswer
+    spyOpponentAnswer: spyOpponentAnswer,
+    isSelection: Boolean(pending.isSelection),
+    isGrandFinal: Boolean(pending.isGrandFinal),
+    previousAnswers: pending.previousAnswers || []
   };
 }
 
@@ -1876,7 +2195,7 @@ function klppViewerVote(room, clientId, players){
   if(!vote) return null;
   const eligible = listKlppEligibleVoters(room, vote);
 
-  if(vote.type === "final_lash" || vote.type === "meme_round"){
+  if((vote.type === "final_lash" || vote.type === "meme_round") && !vote.isTournamentMatch){
     const chosenClientId = vote.votes ? (vote.votes[clientId] || "") : "";
     const anonymizedAnswers = vote.answers.map(function(ans, index){
       return {
@@ -1897,6 +2216,33 @@ function klppViewerVote(room, clientId, players){
       chosenClientId: chosenClientId,
       isAuthor: true,
       canVote: true
+    };
+  }
+
+  if (vote.isTournamentMatch) {
+    const isAuthor = clientId === vote.leftClientId || clientId === vote.rightClientId;
+    const canVote = eligible.indexOf(clientId) !== -1;
+    const hideNow = !vote.result;
+    const chosenClientId = vote.votes ? (vote.votes[clientId] || "") : "";
+    const bet = vote.bets ? vote.bets[clientId] : null;
+
+    return {
+      pairId: vote.pairId,
+      type: "final_lash",
+      questionText: vote.questionText,
+      leftClientId: hideNow ? "anon_left" : vote.leftClientId,
+      rightClientId: hideNow ? "anon_right" : vote.rightClientId,
+      leftNickname: hideNow ? "Игрок А" : (players.find(function(p){ return p.clientId === vote.leftClientId; })?.nickname || "Игрок"),
+      rightNickname: hideNow ? "Игрок Б" : (players.find(function(p){ return p.clientId === vote.rightClientId; })?.nickname || "Игрок"),
+      leftText: vote.leftText,
+      rightText: vote.rightText,
+      leftMemeImageUrl: vote.leftMemeImageUrl || null,
+      rightMemeImageUrl: vote.rightMemeImageUrl || null,
+      isTournamentMatch: true,
+      chosenClientId: chosenClientId,
+      isAuthor: isAuthor,
+      canVote: canVote,
+      bet: bet
     };
   }
 
@@ -1940,6 +2286,31 @@ function klppSerializeCurrentVote(room, nameMap){
   if(!vote) return null;
   const eligible = listKlppEligibleVoters(room, vote);
   const votesGiven = Object.keys(vote.votes || {}).filter(function(voter){ return eligible.indexOf(voter) !== -1; }).length;
+
+  if (vote.isTournamentMatch) {
+    const hideNow = !vote.result;
+    return {
+      pairId: vote.pairId,
+      type: "final_lash",
+      questionText: vote.questionText,
+      leftClientId: hideNow ? "anon_left" : vote.leftClientId,
+      rightClientId: hideNow ? "anon_right" : vote.rightClientId,
+      leftNickname: hideNow ? "Игрок А" : (nameMap.get(vote.leftClientId) || "Игрок"),
+      rightNickname: hideNow ? "Игрок Б" : (nameMap.get(vote.rightClientId) || "Игрок"),
+      leftAvatar: hideNow ? null : clone(room.players.find(p => p.clientId === vote.leftClientId)?.avatar || null),
+      rightAvatar: hideNow ? null : clone(room.players.find(p => p.clientId === vote.rightClientId)?.avatar || null),
+      leftText: vote.leftText,
+      rightText: vote.rightText,
+      leftMemeImageUrl: vote.leftMemeImageUrl || null,
+      rightMemeImageUrl: vote.rightMemeImageUrl || null,
+      votesGiven: votesGiven,
+      eligibleVoters: eligible.length,
+      isTournamentMatch: true,
+      stageIndex: vote.stageIndex,
+      matchId: vote.matchId,
+      result: vote.result ? clone(vote.result) : null
+    };
+  }
 
   if(vote.type === "final_lash" || vote.type === "meme_round"){
     const hideNow = !vote.result;
@@ -2086,7 +2457,31 @@ function serializeKlppRoom(room, req){
       assignments: viewerAssignments,
       vote: klppViewerVote(room, viewerClientId, players)
     },
-    hostControls: hostControls
+    hostControls: hostControls,
+    tournament: room.tournament ? {
+      stageIndex: room.tournament.stageIndex,
+      activeMatchIndex: room.tournament.activeMatchIndex,
+      grandFinalPromptChoices: room.tournament.grandFinalPromptChoices,
+      promptVotes: room.tournament.promptVotes,
+      stages: room.tournament.stages.map(function(stage) {
+        return stage.map(function(match) {
+          return {
+            id: match.id,
+            p1: match.p1,
+            p2: match.p2,
+            p1Nickname: nameMap.get(match.p1) || null,
+            p2Nickname: nameMap.get(match.p2) || null,
+            p1Avatar: match.p1 ? (room.players.find(p => p.clientId === match.p1)?.avatar || null) : null,
+            p2Avatar: match.p2 ? (room.players.find(p => p.clientId === match.p2)?.avatar || null) : null,
+            p1Answer: match.p1Answer,
+            p2Answer: match.p2Answer,
+            winner: match.winner,
+            winnerNickname: match.winner ? (nameMap.get(match.winner) || null) : null
+          };
+        });
+      })
+    } : null,
+    playerAnswers: room.playerAnswers || {}
   };
 }
 function hasKlppHostAccess(room, body){
@@ -2437,7 +2832,14 @@ function klppRunBotAutoplay(room){
         const stagger = (assignment.order || 0) * 900 + Math.random() * 600;
         if(elapsed < 1200 + stagger) return;
         
-        if(room.currentRound.type === "meme_round"){
+        if (assignment.isSelection) {
+          const past = assignment.previousAnswers || [];
+          if (past.length > 0) {
+            assignment.answerText = past[Math.floor(Math.random() * past.length)];
+          } else {
+            assignment.answerText = klppRandomBotAnswer();
+          }
+        } else if(room.currentRound.type === "meme_round"){
           const topText = klppRandomBotAnswer();
           const bottomText = klppRandomBotAnswer();
           assignment.answerText = JSON.stringify({top: topText, bottom: bottomText});
@@ -2451,6 +2853,30 @@ function klppRunBotAutoplay(room){
     });
   }
 
+  // GRAND FINAL PROMPT VOTE PHASE — bots vote on final question choices
+  if(room.state === "grand_final_prompt_vote" && room.tournament && elapsed > 1000){
+    const choices = room.tournament.grandFinalPromptChoices || [];
+    if (choices.length > 0) {
+      room.players.forEach(function(p){
+        if(!p.isBot) return;
+        room.tournament.promptVotes = room.tournament.promptVotes || {};
+        if(room.tournament.promptVotes[p.clientId]) return;
+        
+        const stagger = Math.random() * 3000;
+        if(elapsed < 1000 + stagger) return;
+        
+        const randomChoice = choices[Math.floor(Math.random() * choices.length)];
+        room.tournament.promptVotes[p.clientId] = randomChoice.id;
+        
+        const totalVoters = room.players.length;
+        const votesCount = Object.keys(room.tournament.promptVotes).length;
+        if (votesCount >= totalVoters) {
+          finalizeGrandFinalPromptVote(room);
+        }
+      });
+    }
+  }
+
   // VOTE PHASE — bots cast a random vote after reveal animation finishes
   if(room.state === "vote" && room.currentRound && elapsed > KLPP_VOTE_REVEAL_MS + 800){
     const vote = getKlppCurrentVote(room);
@@ -2462,11 +2888,15 @@ function klppRunBotAutoplay(room){
         if(vote.votes && vote.votes[p.clientId]) return; // already voted
         
         if(vote.type === "final_lash" || vote.type === "meme_round"){
-          const eligibleAnswers = vote.answers.filter(function(a){ return a.clientId !== p.clientId && !a.missing; });
+          const eligibleAnswers = vote.answers ? vote.answers.filter(function(a){ return a.clientId !== p.clientId && !a.missing; }) : [];
           if(eligibleAnswers.length > 0){
             const chosen = eligibleAnswers[Math.floor(Math.random() * eligibleAnswers.length)];
             vote.votes = vote.votes || {};
             vote.votes[p.clientId] = chosen.clientId;
+          } else if(vote.isTournamentMatch) {
+            const target = Math.random() < 0.5 ? vote.leftClientId : vote.rightClientId;
+            vote.votes = vote.votes || {};
+            vote.votes[p.clientId] = target;
           }
         } else {
           const leftValid = !vote.leftMissing;
@@ -3151,10 +3581,187 @@ const server = http.createServer(async function(req, res){
         return;
       }
       assignment.answerText = text.slice(0, 220);
+      if (body.memeImageUrl) {
+        assignment.memeImageUrl = String(body.memeImageUrl).trim();
+      }
       assignment.submittedAt = Date.now();
       assignment.status = "answered";
+      
+      if (!room.playerAnswers) room.playerAnswers = {};
+      if (!room.playerAnswers[clientId]) room.playerAnswers[clientId] = [];
+      if (room.playerAnswers[clientId].indexOf(assignment.answerText) === -1) {
+        room.playerAnswers[clientId].push(assignment.answerText);
+      }
+      
       tickKlppRoom(room);
       broadcastKlppRoom(room);
+      sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
+  const klppBetMatch = pathname.match(/^\/api\/klpp\/room\/([^/]+)\/bet$/);
+  if(req.method === "POST" && klppBetMatch){
+    try{
+      const room = getKlppRoom(klppBetMatch[1]);
+      if(!room){
+        sendJson(res, 404, {ok: false, error: "Room not found"});
+        return;
+      }
+      tickKlppRoom(room);
+      if(room.state !== "vote"){
+        sendJson(res, 409, {ok: false, error: "Ставки можно делать только во время голосования"});
+        return;
+      }
+      const body = await parseBody(req);
+      const clientId = String(body.clientId || "").trim();
+      const targetClientId = String(body.targetClientId || "").trim();
+      const amount = Math.max(0, Number(body.amount) || 0);
+      
+      const currentVote = getKlppCurrentVote(room);
+      if(!currentVote || !currentVote.isTournamentMatch){
+        sendJson(res, 400, {ok: false, error: "Активный матч не поддерживает ставки"});
+        return;
+      }
+      if(!clientId || !room.players.find(p => p.clientId === clientId)){
+        sendJson(res, 403, {ok: false, error: "Unknown player"});
+        return;
+      }
+      if(clientId === currentVote.leftClientId || clientId === currentVote.rightClientId){
+        sendJson(res, 400, {ok: false, error: "Вы не можете делать ставки в своей дуэли!"});
+        return;
+      }
+      
+      let resolvedTargetId = targetClientId;
+      if (resolvedTargetId === "anon_left") {
+        resolvedTargetId = currentVote.leftClientId;
+      } else if (resolvedTargetId === "anon_right") {
+        resolvedTargetId = currentVote.rightClientId;
+      }
+
+      if(resolvedTargetId !== currentVote.leftClientId && resolvedTargetId !== currentVote.rightClientId){
+        sendJson(res, 400, {ok: false, error: "Некорректный кандидат для ставки"});
+        return;
+      }
+      
+      const currentScore = room.scoreboard[clientId] || 0;
+      const maxAllowed = currentScore > 0 ? currentScore : 100;
+      if(amount > maxAllowed){
+        sendJson(res, 400, {ok: false, error: "Недостаточно очков для такой ставки (макс: " + maxAllowed + ")"});
+        return;
+      }
+      
+      if(!currentVote.bets) currentVote.bets = {};
+      currentVote.bets[clientId] = { targetClientId: resolvedTargetId, amount: amount };
+      
+      if (room.tournament) {
+        const stage = room.tournament.stages[currentVote.stageIndex];
+        const match = stage ? stage[currentVote.matchIndex] : null;
+        if (match) {
+          if(!match.bets) match.bets = {};
+          match.bets[clientId] = { targetClientId: targetClientId, amount: amount };
+        }
+      }
+      
+      broadcastKlppRoom(room);
+      sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
+  const klppVoteFinalPromptMatch = pathname.match(/^\/api\/klpp\/room\/([^/]+)\/vote-final-prompt$/);
+  if(req.method === "POST" && klppVoteFinalPromptMatch){
+    try{
+      const room = getKlppRoom(klppVoteFinalPromptMatch[1]);
+      if(!room){
+        sendJson(res, 404, {ok: false, error: "Room not found"});
+        return;
+      }
+      tickKlppRoom(room);
+      if(room.state !== "grand_final_prompt_vote"){
+        sendJson(res, 409, {ok: false, error: "Голосование за финальный вопрос неактивно"});
+        return;
+      }
+      const body = await parseBody(req);
+      const clientId = String(body.clientId || "").trim();
+      const choiceId = String(body.choiceId || "").trim();
+      
+      if(!clientId || !room.players.find(p => p.clientId === clientId)){
+        sendJson(res, 403, {ok: false, error: "Unknown player"});
+        return;
+      }
+      const choice = (room.tournament.grandFinalPromptChoices || []).find(c => c.id === choiceId);
+      if(!choice){
+        sendJson(res, 400, {ok: false, error: "Некорректный вариант вопроса"});
+        return;
+      }
+      
+      room.tournament.promptVotes = room.tournament.promptVotes || {};
+      room.tournament.promptVotes[clientId] = choiceId;
+      
+      const totalVoters = room.players.length;
+      const votesCount = Object.keys(room.tournament.promptVotes).length;
+      if (votesCount >= totalVoters) {
+        finalizeGrandFinalPromptVote(room);
+      } else {
+        broadcastKlppRoom(room);
+      }
+      sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
+    }catch(error){
+      sendJson(res, 400, {ok: false, error: error.message});
+    }
+    return;
+  }
+
+  const klppTestArenaMatch = pathname.match(/^\/api\/klpp\/room\/([^/]+)\/test-arena$/);
+  if(req.method === "POST" && klppTestArenaMatch){
+    try{
+      const room = getKlppRoom(klppTestArenaMatch[1]);
+      if(!room){
+        sendJson(res, 404, {ok: false, error: "Room not found"});
+        return;
+      }
+      
+      while(room.players.length < 3){
+        const botCount = room.players.length;
+        const botNames = ["Robo-Лёха", "Бот-Маша", "ИИ-Витя", "Гена-Skynet", "Нейро-Зина", "GPT-Семён", "АвтоТаня", "Бот-Анон"];
+        const botColors = ["#ff6b6b","#4d96ff","#6bcb77","#ffd93d","#b388ff","#ff9f1c","#ff6f91","#00c2a8"];
+        const botFaces = ["smile","cool","nerd","sleepy","clown","alien","robot","mustache"];
+        const botId = "bot_" + Math.random().toString(36).substr(2, 5);
+        
+        room.players.push({
+          clientId: botId,
+          nickname: botNames[botCount % botNames.length],
+          avatar: { color: botColors[botCount % botColors.length], face: botFaces[botCount % botFaces.length] },
+          joinedAt: Date.now() + botCount,
+          isBot: true
+        });
+      }
+      
+      listKlppPlayers(room).forEach(function(p){
+        room.scoreboard[p.clientId] = 1000;
+      });
+      
+      if(!room.playerAnswers) room.playerAnswers = {};
+      listKlppPlayers(room).forEach(function(p){
+        room.playerAnswers[p.clientId] = [
+          "Пельмени со сгущёнкой",
+          "Синий экран смерти",
+          "Лысый кактус на окне",
+          "Котик в тёплом свитере"
+        ];
+      });
+      
+      room.roundIndex = room.settings.roundCount - 1;
+      
+      setupKlppRound(room);
+      setKlppState(room, "round_intro");
+      broadcastKlppRoom(room);
+      
       sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});
     }catch(error){
       sendJson(res, 400, {ok: false, error: error.message});
@@ -3192,17 +3799,32 @@ const server = http.createServer(async function(req, res){
         sendJson(res, 409, {ok: false, error: "Этот вопрос уже сменился"});
         return;
       }
+      
+      let resolvedTargetId = targetClientId;
+      if (resolvedTargetId === "anon_left") {
+        resolvedTargetId = currentVote.leftClientId;
+      } else if (resolvedTargetId === "anon_right") {
+        resolvedTargetId = currentVote.rightClientId;
+      }
+
       if(currentVote.type === "final_lash" || currentVote.type === "meme_round"){
-        if(!currentVote.answers.some(function(a){ return a.clientId === targetClientId; })){
-          sendJson(res, 400, {ok: false, error: "Неизвестный кандидат"});
-          return;
+        if (currentVote.isTournamentMatch) {
+          if (resolvedTargetId !== currentVote.leftClientId && resolvedTargetId !== currentVote.rightClientId) {
+            sendJson(res, 400, {ok: false, error: "Неизвестный кандидат"});
+            return;
+          }
+        } else {
+          if(!currentVote.answers.some(function(a){ return a.clientId === resolvedTargetId; })){
+            sendJson(res, 400, {ok: false, error: "Неизвестный кандидат"});
+            return;
+          }
         }
-        if(clientId === targetClientId){
+        if(clientId === resolvedTargetId){
           sendJson(res, 400, {ok: false, error: "Нельзя голосовать за самого себя"});
           return;
         }
       } else {
-        if(targetClientId !== currentVote.leftClientId && targetClientId !== currentVote.rightClientId){
+        if(resolvedTargetId !== currentVote.leftClientId && resolvedTargetId !== currentVote.rightClientId){
           sendJson(res, 400, {ok: false, error: "Неизвестный кандидат"});
           return;
         }
@@ -3213,7 +3835,7 @@ const server = http.createServer(async function(req, res){
         }
       }
       currentVote.votes = currentVote.votes || {};
-      currentVote.votes[clientId] = targetClientId;
+      currentVote.votes[clientId] = resolvedTargetId;
       tickKlppRoom(room);
       broadcastKlppRoom(room);
       sendJson(res, 200, {ok: true, room: serializeKlppRoom(room, req)});

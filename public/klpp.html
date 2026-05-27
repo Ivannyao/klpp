@@ -1132,6 +1132,367 @@ img{display:block;max-width:100%}
     padding: 16px;
   }
 }
+
+/* ───── КРОВАВАЯ АРЕНА СМЕРТИ ───── */
+@keyframes arena-rumble {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  10% { transform: translate(-0.5px, 0.5px) rotate(-0.1deg); }
+  20% { transform: translate(-1px, 0px) rotate(0.1deg); }
+  30% { transform: translate(0.5px, -0.5px) rotate(0deg); }
+  40% { transform: translate(1px, 0.5px) rotate(-0.1deg); }
+  50% { transform: translate(-0.5px, -0.5px) rotate(0.1deg); }
+  60% { transform: translate(-1px, 0px) rotate(0deg); }
+  70% { transform: translate(0.5px, 0.5px) rotate(-0.1deg); }
+  80% { transform: translate(-0.5px, -0.5px) rotate(0.1deg); }
+  90% { transform: translate(1px, 0px) rotate(0deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+body.arena-death-active {
+  background: linear-gradient(135deg, #300000, #100000) !important;
+}
+
+body.arena-death-active #screenHost {
+  background: linear-gradient(135deg, #300000, #100000) !important;
+}
+
+body.arena-death-active .host-stage-panel {
+  animation: arena-rumble 0.25s infinite linear;
+}
+
+.arena-fire-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 140px;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 10;
+  display: none;
+}
+body.arena-death-active .arena-fire-container {
+  display: block;
+}
+
+/* Arena round transition overlay: dark red bg */
+body.arena-transition-active .host-round-transition {
+  background: radial-gradient(ellipse at center, #3a0000 0%, #100000 70%) !important;
+}
+body.arena-transition-active .host-round-transition__label {
+  color: #ff4444 !important;
+  letter-spacing: 3px;
+  font-size: clamp(14px, 2.5vw, 28px) !important;
+}
+body.arena-transition-active .host-round-transition {
+  box-shadow: inset 0 0 80px rgba(255,0,0,0.3);
+}
+.flame {
+  position: absolute;
+  bottom: -30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  filter: blur(5px);
+  opacity: 0;
+  animation: float-upwards var(--d) infinite ease-in;
+}
+@keyframes float-upwards {
+  0% { transform: translateY(0) scale(1); opacity: 0.8; }
+  50% { opacity: 0.6; }
+  100% { transform: translateY(-160px) scale(0.1); opacity: 0; }
+}
+
+.bracket-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  width: 100%;
+  height: 480px;
+  margin-top: 20px;
+  padding: 0 40px;
+}
+.bracket-stage-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  height: 100%;
+}
+.bracket-match {
+  background: rgba(20, 0, 0, 0.85);
+  border: 2px solid #500;
+  border-radius: 12px;
+  padding: 8px 16px;
+  min-width: 180px;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.2);
+  position: relative;
+  transition: all 0.3s ease;
+}
+.bracket-match.active {
+  border-color: #f33;
+  box-shadow: 0 0 20px rgba(255, 50, 50, 0.6);
+}
+.bracket-player-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #eee;
+}
+.bracket-player-row.winner {
+  color: #ff3;
+}
+.bracket-player-row.eliminated {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.bracket-vs-divider {
+  height: 1px;
+  background: #400;
+  margin: 4px 0;
+}
+.bracket-match::after {
+  content: "";
+  position: absolute;
+  right: -25px;
+  top: 50%;
+  width: 25px;
+  height: 2px;
+  background: #400;
+  display: none;
+}
+.bracket-stage-col:not(:last-child) .bracket-match::after {
+  display: block;
+}
+
+.gf-fight-stage {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  padding-top: 30px;
+}
+.gf-fighter-side {
+  width: 40%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  transition: all 0.3s ease;
+}
+.gf-fighter-side.left {
+  align-items: flex-start;
+}
+.gf-fighter-side.right {
+  align-items: flex-end;
+}
+.gf-health-bar-container {
+  width: 100%;
+  height: 24px;
+  background: #200;
+  border: 2px solid #555;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 0 5px #000;
+}
+.gf-health-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ff3b3b, #ff0000);
+  width: 100%;
+  transition: width 1s cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+.gf-fighter-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 4px #000;
+}
+.gf-fighter-answer-card {
+  background: rgba(30, 5, 5, 0.9);
+  border: 3px solid #ff4d4d;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  transition: all 0.4s ease;
+}
+.gf-fighter-answer-card img {
+  max-height: 120px;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid #ff3300;
+}
+.gf-vs-medallion {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  font-size: 48px;
+  font-weight: 900;
+  color: #ff3b3b;
+  text-shadow: 0 0 20px #ff0000, 0 0 40px #ff5500;
+  animation: vs-pulse 1s infinite alternate;
+}
+@keyframes vs-pulse {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  100% { transform: translate(-50%, -50%) scale(1.15); }
+}
+
+@keyframes attack-left-swipe {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(120px) scale(1.1); }
+  100% { transform: translateX(0); }
+}
+@keyframes attack-right-swipe {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(-120px) scale(1.1); }
+  100% { transform: translateX(0); }
+}
+.gf-fighter-side.attack-left {
+  animation: attack-left-swipe 0.4s ease-out;
+}
+.gf-fighter-side.attack-right {
+  animation: attack-right-swipe 0.4s ease-out;
+}
+.gf-fighter-side.damage-taken {
+  animation: arena-rumble 0.15s infinite;
+  filter: brightness(2.5) drop-shadow(0 0 20px #f00);
+}
+.gf-fighter-side.knocked-out {
+  opacity: 0.3;
+  transform: rotate(-15deg) translateY(40px) scale(0.9);
+  filter: grayscale(1);
+}
+
+.mobile-suggestions-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ff7777;
+  margin: 12px 0 6px;
+  text-transform: uppercase;
+}
+.mobile-suggestions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.mobile-suggestion-pill {
+  background: #3a1010;
+  border: 2px solid #5b1a1a;
+  border-radius: 20px;
+  color: #eee;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.mobile-suggestion-pill:hover, .mobile-suggestion-pill.active {
+  background: #900;
+  border-color: #f33;
+  color: #fff;
+  box-shadow: 0 0 8px rgba(255, 0, 0, 0.4);
+}
+.mobile-reaction-carousel {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 8px 0;
+  margin-bottom: 12px;
+  scrollbar-width: thin;
+}
+.mobile-reaction-card {
+  position: relative;
+  border: 2px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 80px;
+  height: 80px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.mobile-reaction-card.active {
+  border-color: #f33;
+  box-shadow: 0 0 10px #f00;
+}
+.mobile-reaction-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mobile-bet-widget {
+  background: rgba(30, 5, 5, 0.95);
+  border: 2px solid #5a1010;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 15px 0;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.1);
+}
+.mobile-bet-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ff9999;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.mobile-bet-buttons {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.mobile-bet-btn {
+  background: #222;
+  border: 1px solid #444;
+  color: #bbb;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mobile-bet-btn.active {
+  background: #ffaa00;
+  border-color: #ffaa00;
+  color: #111;
+  box-shadow: 0 0 6px rgba(255, 170, 0, 0.5);
+}
+
+.logo-arena-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 300px;
+  margin-bottom: 20px;
+}
+.logo-arena-img {
+  max-width: 90%;
+  max-height: 280px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 15px rgba(255, 0, 0, 0.6));
+}
 </style>
 </head>
 <body>
@@ -1365,6 +1726,31 @@ img{display:block;max-width:100%}
         <div class="host-controls" id="hostControls" hidden>
           <button class="small-pill" id="hostPauseButton" type="button">Пауза</button>
           <button class="small-pill" id="hostEndButton" type="button">Закончить</button>
+          <button class="small-pill" id="hostTestArenaButton" type="button" style="background:#800; border-color:#d00;">Тест: Арена Смерти</button>
+        </div>
+        <div class="arena-fire-container">
+          <div class="flame" style="left: 2%; --d: 1.6s; width: 45px; height: 45px; background: radial-gradient(circle, #ffaa00 20%, #ff3300 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 6%; --d: 2.1s; width: 55px; height: 55px; background: radial-gradient(circle, #ff6a00 20%, #ff0000 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 11%; --d: 1.8s; width: 40px; height: 40px; background: radial-gradient(circle, #ffcc00 10%, #ff5500 60%, transparent 100%);"></div>
+          <div class="flame" style="left: 15%; --d: 2.4s; width: 60px; height: 60px; background: radial-gradient(circle, #ffaa00 20%, #ff0000 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 20%; --d: 1.9s; width: 45px; height: 45px; background: radial-gradient(circle, #ff9900 20%, #ff3300 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 24%; --d: 2.2s; width: 50px; height: 50px; background: radial-gradient(circle, #ffaa00 20%, #ff0000 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 29%; --d: 1.7s; width: 35px; height: 35px; background: radial-gradient(circle, #ffcc00 10%, #ff5500 60%, transparent 100%);"></div>
+          <div class="flame" style="left: 33%; --d: 2.5s; width: 65px; height: 65px; background: radial-gradient(circle, #ff8800 30%, #ff0000 80%, transparent 100%);"></div>
+          <div class="flame" style="left: 38%; --d: 2.0s; width: 50px; height: 50px; background: radial-gradient(circle, #ffaa00 20%, #ff3300 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 42%; --d: 2.3s; width: 45px; height: 45px; background: radial-gradient(circle, #ffaa00 20%, #ff0000 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 47%; --d: 1.6s; width: 55px; height: 55px; background: radial-gradient(circle, #ffcc00 10%, #ff5500 60%, transparent 100%);"></div>
+          <div class="flame" style="left: 51%; --d: 2.1s; width: 40px; height: 40px; background: radial-gradient(circle, #ffaa00 20%, #ff0000 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 56%; --d: 1.8s; width: 60px; height: 60px; background: radial-gradient(circle, #ff6a00 20%, #ff3300 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 60%; --d: 2.4s; width: 45px; height: 45px; background: radial-gradient(circle, #ff9900 20%, #ff0000 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 65%; --d: 1.9s; width: 50px; height: 50px; background: radial-gradient(circle, #ffaa00 20%, #ff3300 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 69%; --d: 2.2s; width: 35px; height: 35px; background: radial-gradient(circle, #ffcc00 10%, #ff5500 60%, transparent 100%);"></div>
+          <div class="flame" style="left: 74%; --d: 1.7s; width: 65px; height: 65px; background: radial-gradient(circle, #ff8800 30%, #ff0000 80%, transparent 100%);"></div>
+          <div class="flame" style="left: 78%; --d: 2.5s; width: 50px; height: 50px; background: radial-gradient(circle, #ffaa00 20%, #ff3300 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 83%; --d: 2.0s; width: 45px; height: 45px; background: radial-gradient(circle, #ffaa00 20%, #ff0000 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 87%; --d: 2.3s; width: 55px; height: 55px; background: radial-gradient(circle, #ffcc00 10%, #ff5500 60%, transparent 100%);"></div>
+          <div class="flame" style="left: 92%; --d: 1.8s; width: 40px; height: 40px; background: radial-gradient(circle, #ffaa00 20%, #ff0000 70%, transparent 100%);"></div>
+          <div class="flame" style="left: 96%; --d: 2.2s; width: 60px; height: 60px; background: radial-gradient(circle, #ff6a00 20%, #ff3300 70%, transparent 100%);"></div>
         </div>
       </div>
     </div>
@@ -1598,7 +1984,7 @@ img{display:block;max-width:100%}
   <button id="devEndGame" type="button">🛑 конец</button>
 </div>
 
-<script src="/klpp-client.js?v=dev-1"></script>
+<script src="/klpp-client.js?v=arena-v2"></script>
 </body>
 </html>
 
