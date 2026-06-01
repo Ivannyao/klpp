@@ -1148,12 +1148,24 @@ img{display:block;max-width:100%}
   100% { transform: translate(0, 0) rotate(0deg); }
 }
 
+body.host-view-active {
+  overflow: hidden !important;
+}
+body.scoreboard-active {
+  background: #000 !important;
+}
+body.scoreboard-active #screenHost {
+  background: #000 !important;
+}
+
 body.arena-death-active {
-  background: linear-gradient(135deg, #300000, #100000) !important;
+  background: radial-gradient(circle, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.95) 100%), url('/klpp-assets/arena-lava-bg.png') repeat !important;
+  background-size: 400px 400px !important;
 }
 
 body.arena-death-active #screenHost {
-  background: linear-gradient(135deg, #300000, #100000) !important;
+  background: radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.85) 100%), url('/klpp-assets/arena-lava-bg.png') repeat !important;
+  background-size: 400px 400px !important;
 }
 
 body.arena-death-active .host-stage-panel {
@@ -1493,6 +1505,255 @@ body.arena-transition-active .host-round-transition {
   object-fit: contain;
   filter: drop-shadow(0 0 15px rgba(255, 0, 0, 0.6));
 }
+
+/* ───── Additional Arena Theatrical Styles ───── */
+body.arena-death-active .stage-spotlight {
+  display: block !important;
+}
+body.arena-death-active .spotlight-beam {
+  background: conic-gradient(from 165deg at 50% 0%, transparent 0deg, rgba(255, 30, 30, 0.28) 12deg, rgba(255, 30, 30, 0.28) 18deg, transparent 30deg) !important;
+}
+body.arena-death-active .beam-center {
+  opacity: 0.35 !important;
+  background: conic-gradient(from 165deg at 50% 0%, transparent 0deg, rgba(255, 0, 0, 0.38) 12deg, rgba(255, 0, 0, 0.38) 18deg, transparent 30deg) !important;
+}
+body.arena-death-active .host-wooden-stage {
+  display: block !important;
+  border-top: 6px solid #500 !important;
+  box-shadow: 0 -10px 40px rgba(255, 0, 0, 0.4) !important;
+}
+.arena-fire-container {
+  z-index: 12 !important;
+}
+body.arena-death-active .host-scene::before,
+body.arena-death-active .host-trash,
+body.arena-death-active .host-cloud,
+body.arena-death-active .video-bg,
+body.arena-death-active .sunburst-bg {
+  display: none !important;
+}
+
+/* Hide standard prompts and meta in Arena of Death when showing logo */
+body.arena-death-active #hostStageMeta {
+  display: none !important;
+}
+body.arena-death-active #hostStagePrompt {
+  display: none !important;
+}
+body.arena-death-active.vote-mode-active #hostStagePrompt {
+  display: block !important;
+  font-family: 'Arial Black', Impact, sans-serif !important;
+  color: #fff !important;
+  text-shadow: 0 0 12px #f00, 2px 2px 4px #000 !important;
+  font-size: clamp(24px, 4vw, 42px) !important;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 10px;
+  margin-bottom: 25px;
+}
+.arena-logo-header {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 10px;
+  margin-bottom: 25px;
+}
+body.arena-death-active .arena-logo-header {
+  display: flex;
+}
+body.arena-death-active.vote-mode-active .arena-logo-header {
+  display: none !important;
+}
+.arena-logo-header img {
+  max-height: 140px;
+  max-width: 90%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 15px rgba(255, 0, 0, 0.6));
+}
+
+/* Tournament Bracket Matches: Dark Metal Plates (mockup style) */
+.bracket-match {
+  background: linear-gradient(135deg, #2a2a2a 0%, #121212 100%) !important;
+  border: 2px solid #555 !important;
+  border-radius: 14px !important;
+  padding: 10px 14px !important;
+  min-width: 200px !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 8px 16px rgba(0,0,0,0.6) !important;
+  position: relative;
+  transition: all 0.3s ease;
+}
+.bracket-match.active {
+  border-color: #ff3333 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 0 25px rgba(255, 0, 0, 0.8), inset 0 0 10px rgba(255, 0, 0, 0.4) !important;
+  animation: active-bracket-pulse 1.5s infinite alternate ease-in-out !important;
+}
+.bracket-player-row {
+  font-family: 'Arial Black', Impact, sans-serif !important;
+  font-weight: 900 !important;
+  padding: 6px 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #ddd;
+}
+.bracket-player-row.winner {
+  color: #ffcc00 !important;
+  text-shadow: 0 0 8px rgba(255, 204, 0, 0.4) !important;
+}
+.bracket-player-row.eliminated {
+  opacity: 0.35 !important;
+  text-decoration: line-through;
+}
+.bracket-vs-divider {
+  height: 1px;
+  background: #522 !important;
+  margin: 4px 0;
+}
+.bracket-stage-col:not(:last-child) .bracket-match::after {
+  background: #ff3333 !important;
+  box-shadow: 0 0 8px #ff0000 !important;
+}
+@keyframes active-bracket-pulse {
+  0% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 0 12px rgba(255, 0, 0, 0.4), inset 0 0 5px rgba(255, 0, 0, 0.2); }
+  100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 0 30px rgba(255, 0, 0, 1), inset 0 0 15px rgba(255, 0, 0, 0.6); }
+}
+
+/* Mobile Player view in Arena */
+body.arena-death-active .screen-player {
+  background: radial-gradient(circle, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.95) 100%), url('/klpp-assets/arena-lava-bg.png') repeat !important;
+  background-size: 320px 320px !important;
+  color: #fff !important;
+}
+body.arena-death-active .screen-player:before {
+  display: none !important;
+}
+body.arena-death-active .player-title,
+body.arena-death-active .player-subtitle,
+body.arena-death-active .panel-copy,
+body.arena-death-active .score-name,
+body.arena-death-active .score-value,
+body.arena-death-active label span {
+  color: #fff !important;
+  text-shadow: 1px 1px 2px #000;
+}
+body.arena-death-active .score-row {
+  background: rgba(20, 0, 0, 0.9) !important;
+  border-color: #500 !important;
+  color: #fff !important;
+  box-shadow: 4px 5px 0 rgba(0,0,0,0.6) !important;
+}
+body.arena-death-active .score-row.winner {
+  background: rgba(255, 170, 0, 0.15) !important;
+  border-color: #ffaa00 !important;
+  box-shadow: 0 0 15px rgba(255, 170, 0, 0.4) !important;
+}
+
+/* Inputs & Forms in Arena */
+body.arena-death-active textarea,
+body.arena-death-active input[type="text"] {
+  background: rgba(15, 0, 0, 0.9) !important;
+  border: 3px solid #ff3333 !important;
+  border-radius: 14px !important;
+  color: #fff !important;
+  box-shadow: inset 0 0 8px #000, 0 0 15px rgba(255, 0, 0, 0.4) !important;
+}
+body.arena-death-active textarea:focus,
+body.arena-death-active input[type="text"]:focus {
+  border-color: #ff5555 !important;
+  box-shadow: inset 0 0 8px #000, 0 0 20px rgba(255, 0, 0, 0.7) !important;
+  outline: none;
+}
+
+/* Metal Suggestions Buttons */
+body.arena-death-active .gf-suggestion-btn {
+  background: linear-gradient(to bottom, #555 0%, #222 100%) !important;
+  border: 2px solid #777 !important;
+  border-radius: 12px !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  color: #eee !important;
+  cursor: pointer;
+  font-family: inherit !important;
+  transition: all 0.2s !important;
+  text-shadow: 0 -1px 0 #000 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 6px rgba(0,0,0,0.5) !important;
+}
+body.arena-death-active .gf-suggestion-btn:hover,
+body.arena-death-active .gf-suggestion-btn:active {
+  background: linear-gradient(to bottom, #777 0%, #333 100%) !important;
+  border-color: #999 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 10px rgba(0,0,0,0.6) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Heavy Metal CTA Submit Button */
+body.arena-death-active button.cta,
+body.arena-death-active #playerAnswerSubmit {
+  background: linear-gradient(135deg, #a00 0%, #500 100%) !important;
+  border: 3px solid #ff3333 !important;
+  color: #fff !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8), 0 0 8px rgba(255, 0, 0, 0.6) !important;
+  box-shadow: 0 4px 15px rgba(255,0,0,0.4), inset 0 0 8px rgba(255, 255, 255, 0.2) !important;
+  border-radius: 14px !important;
+  transition: all 0.2s !important;
+}
+body.arena-death-active button.cta:hover,
+body.arena-death-active button.cta:active,
+body.arena-death-active #playerAnswerSubmit:hover,
+body.arena-death-active #playerAnswerSubmit:active {
+  background: linear-gradient(135deg, #d00 0%, #700 100%) !important;
+  box-shadow: 0 6px 20px rgba(255,0,0,0.7), inset 0 0 10px rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-2px) scale(1.02) !important;
+}
+
+body.arena-death-active .klpp-toggle-bar {
+  border-color: #ff3333 !important;
+  background: #111 !important;
+}
+body.arena-death-active .klpp-toggle-bar button {
+  background: #200 !important;
+  color: #888 !important;
+  font-family: inherit !important;
+}
+body.arena-death-active .klpp-toggle-bar button.active {
+  background: #a00 !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px rgba(255, 0, 0, 0.6) !important;
+}
+body.arena-death-active #gfCustomMemeBtn {
+  border-color: #ff3333 !important;
+  background: rgba(35, 0, 0, 0.8) !important;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.3) !important;
+}
+
+.gf-vs-medallion {
+  position: absolute;
+  left: 50%;
+  top: 35%;
+  transform: translate(-50%, -50%);
+  width: 90px;
+  height: 90px;
+  background: radial-gradient(circle, #800 0%, #200 100%);
+  border: 4px solid #f33;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 32px;
+  font-weight: 900;
+  font-family: 'Arial Black', Impact, sans-serif;
+  color: #fff;
+  text-shadow: 0 2px 4px #000, 0 0 10px #f00;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.8), inset 0 0 10px #000;
+  z-index: 15;
+  animation: vs-pulse 1s infinite alternate;
+}
 </style>
 </head>
 <body>
@@ -1699,6 +1960,7 @@ body.arena-transition-active .host-round-transition {
           <div class="lobby-summary" id="hostLobbySummary"></div>
         </section>
         <section class="stage-panel" id="hostStagePanel" hidden>
+          <div class="arena-logo-header" id="hostArenaLogoHeader"></div>
           <div class="stage-meta" id="hostStageMeta"></div>
           <p class="stage-prompt" id="hostStagePrompt"></p>
           <div class="timer-bar" id="hostStageTimer" hidden>

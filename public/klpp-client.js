@@ -45,8 +45,10 @@
     lastVoteIndex: -1,
     hostTransitionTimeout: null,
     duelTransitionTimeout: null,
-    podiumTimer: null
+    podiumTimer: null,
+    transparentLogoUrl: ""
   };
+  var clientState = state;
 
   /* ───── Web Audio Sound Engine ───── */
   var klppAudio = (function(){
@@ -420,6 +422,43 @@
   loadAvailableModifiers();
   bootFromUrl();
 
+  makeImageTransparent("/klpp-assets/logo-arena.jpg", function(dataUrl) {
+    state.transparentLogoUrl = dataUrl;
+  });
+
+  function makeImageTransparent(imgUrl, callback) {
+    var img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = function() {
+      var canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      try {
+        var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var data = imgData.data;
+        for (var i = 0; i < data.length; i += 4) {
+          var r = data[i];
+          var g = data[i+1];
+          var b = data[i+2];
+          // Key out white background pixels
+          if (r > 230 && g > 230 && b > 230) {
+            data[i+3] = 0;
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        callback(canvas.toDataURL("image/png"));
+      } catch (e) {
+        callback(imgUrl);
+      }
+    };
+    img.onerror = function() {
+      callback(imgUrl);
+    };
+    img.src = imgUrl;
+  }
+
   function id(value){ return document.getElementById(value); }
 
   function bindEvents(){
@@ -641,6 +680,7 @@
     if(view !== "host"){
       document.body.classList.remove("scoreboard-active");
     }
+    document.body.classList.toggle("host-view-active", view === "host");
     if(view !== "player" && els.playerReactionsBar){
       els.playerReactionsBar.hidden = true;
     }
@@ -978,6 +1018,7 @@
   }
 
   function tickLocalTimer(){
+    if (state.hostTransitionTimeout || state.duelTransitionTimeout) return;
     var snap = state.room;
     if(!snap || !snap.phaseEndsAt){ hideTimers(); return; }
     var remainMs = Math.max(0, snap.phaseEndsAt - Date.now());
@@ -1453,7 +1494,8 @@
 
     var inLobby = snap.state === "lobby";
     els.hostLobbyPanel.hidden = !inLobby;
-    els.hostStagePanel.hidden = inLobby || snap.state === "answer";
+    var isArenaAnswer = snap.state === "answer" && snap.currentRound && snap.currentRound.type === "final_lash";
+    els.hostStagePanel.hidden = inLobby || (snap.state === "answer" && !isArenaAnswer);
 
     if(inLobby){
       els.hostLobbyCopy.textContent = snap.players.length < snap.minPlayersToStart
@@ -1536,7 +1578,8 @@
       document.body.classList.add("arena-transition-active");
       var labelEl = els.hostRoundTransition.querySelector(".host-round-transition__label");
       if(labelEl) labelEl.textContent = "КРОВАВАЯ АРЕНА СМЕРТИ";
-      els.hostRoundTransitionNumber.innerHTML = '<img src="/klpp-assets/logo-arena.png" alt="Arena Logo" style="max-height:180px; max-width:80%; object-fit:contain; filter:drop-shadow(0 0 20px #ff0000);"><br><span style="font-size:clamp(14px,2vw,22px); color:#ff5555; display:block; margin-top:8px;">Турнир начинается!</span>';
+      var logoSrc = state.transparentLogoUrl || "/klpp-assets/logo-arena.jpg";
+      els.hostRoundTransitionNumber.innerHTML = '<img src="' + logoSrc + '" alt="Arena Logo" style="max-height:180px; max-width:80%; object-fit:contain; filter:drop-shadow(0 0 20px #ff0000);"><br><span style="font-size:clamp(14px,2vw,22px); color:#ff5555; display:block; margin-top:8px;">Турнир начинается!</span>';
     } else {
       document.body.classList.remove("arena-transition-active");
       var labelEl = els.hostRoundTransition.querySelector(".host-round-transition__label");
@@ -1560,6 +1603,21 @@
     
     els.hostStagePanel.classList.toggle("vote-mode", inVote);
     els.hostStagePanel.classList.toggle("answer-mode", inAnswer);
+    
+    document.body.classList.toggle("vote-mode-active", inVote);
+
+    var logoHeader = document.getElementById("hostArenaLogoHeader");
+    if (logoHeader) {
+      var isArenaRound = snap.currentRound && snap.currentRound.type === "final_lash";
+      if (isArenaRound) {
+        var logoSrc = clientState.transparentLogoUrl || "/klpp-assets/logo-arena.jpg";
+        logoHeader.innerHTML = '<img src="' + logoSrc + '" alt="Кровавая Арена Смерти" class="logo-arena-img">';
+        logoHeader.style.display = inVote ? "none" : "flex";
+      } else {
+        logoHeader.style.display = "none";
+        logoHeader.innerHTML = "";
+      }
+    }
     
     var hostAnswerVideo = document.getElementById("hostAnswerVideo");
     var hostAnswerText = document.getElementById("hostAnswerText");
@@ -1625,9 +1683,14 @@
       var isArenaAnswer = snap.currentRound.type === "final_lash";
       if(isReverse) prompt = "❓ Игроки придумывают вопрос к ответу";
       else if(isBlind) prompt = "🙈 Слепой раунд — только подсказка категории";
-      else if(isArenaAnswer) prompt = "💀 Арена: игроки пишут свои ответы";
+      else if(isArenaAnswer) prompt = "💀 Арена: игроки выбирают свои ответы";
       else prompt = "Игроки пишут ответы на своих вопросах";
-      body = "<p class=\"panel-copy\">Каждый игрок отвечает на свои пары. На большом экране результаты появятся, когда все закончат.</p>";
+      
+      if (isArenaAnswer) {
+        body = '<p class="panel-copy" style="font-size:18px; font-weight:800; color:#ffdd44; margin-bottom: 20px;">Игроки выбирают свои лучшие прошлые ответы на телефонах!</p>' + buildTournamentBracketHtml(snap);
+      } else {
+        body = "<p class=\"panel-copy\">Каждый игрок отвечает на свои пары. На большом экране результаты появятся, когда все закончат.</p>";
+      }
     } else if(state === "grand_final_prompt_vote" && snap.tournament){
       prompt = "Выбор финального вопроса";
       var choices = (snap.tournament.grandFinalPromptChoices || []);
@@ -1635,7 +1698,7 @@
       var voterCount = Object.keys(votes).length;
       var totalPlayers = (snap.players || []).filter(function(p){ return !p.isTempBot; }).length;
       body = '<p class="panel-copy" style="font-size:18px; font-weight:800; color:#ffdd44;">Игроки голосуют за финальный вопрос! (' + voterCount + '/' + totalPlayers + ')</p>' +
-        '<div style="display:flex; flex-direction:column; gap:12px; margin-top:20px;">' +
+        '<div style="display:flex; flex-direction:column; gap:12px; margin-top:20px; margin-bottom:30px;">' +
         choices.map(function(c, i) {
           var vcount = Object.values(votes).filter(function(v){ return v === c.id; }).length;
           return '<div style="background:rgba(30,0,0,0.8); border:2px solid #500; border-radius:12px; padding:14px 20px; display:flex; justify-content:space-between; align-items:center;">' +
@@ -1643,7 +1706,7 @@
             '<span style="font-size:22px; font-weight:900; color:#ff5555; min-width:40px; text-align:right;">' + vcount + ' 🗳</span>' +
             '</div>';
         }).join('') +
-        '</div>';
+        '</div>' + buildTournamentBracketHtml(snap);
     } else if(state === "vote" && snap.currentVote){
       var vote = snap.currentVote;
       if(vote.isTournamentMatch){
@@ -1675,7 +1738,8 @@
       body = renderHostScoreboard(snap.lastRoundResult.scoreboard, snap);
     } else if(state === "finished"){
       prompt = "Игра закончилась";
-      body = renderHostScoreboard((snap.lastRoundResult && snap.lastRoundResult.scoreboard) || snap.scoreboard, snap, true);
+      var scoreHtml = renderHostScoreboard((snap.lastRoundResult && snap.lastRoundResult.scoreboard) || snap.scoreboard, snap, true);
+      body = scoreHtml + (snap.tournament ? ('<div style="margin-top:40px;">' + buildTournamentBracketHtml(snap) + '</div>') : '');
     } else if(state === "ability_select" && snap.abilitySelect){
       prompt = "Выбор способностей лидера";
       body = renderHostAbilitySelect(snap);
@@ -1837,7 +1901,7 @@
           '<div class="gf-fighter-answer-card">' + leftAnswerHtml + '</div>' +
         '</div>' +
         // VS
-        '<div class="gf-vs-medallion">⚔️</div>' +
+        '<div class="gf-vs-medallion">VS</div>' +
         // RIGHT FIGHTER
         '<div class="gf-fighter-side right' + (rightWinner ? ' attack-right' : '') + (showResult && !rightWinner && leftWinner ? ' knocked-out' : '') + '">' +
           '<div class="gf-fighter-meta"><span>' + rightName + '</span>' + rightAvatar + '</div>' +
@@ -1848,6 +1912,56 @@
         '</div>' +
       '</div>' +
       resultLine;
+  }
+
+  function buildTournamentBracketHtml(snap) {
+    if (!snap.tournament || !snap.tournament.stages) return '';
+    var stages = snap.tournament.stages;
+    
+    var html = '<div class="bracket-container">';
+    stages.forEach(function(stage, stageIdx) {
+      html += '<div class="bracket-stage-col">';
+      var stageLabel = stageIdx === stages.length - 1 ? 'ГРАНД ФИНАЛ' : (stageIdx === stages.length - 2 ? 'ПОЛУФИНАЛ' : ('РАУНД ' + (stageIdx + 1)));
+      html += '<div style="text-align:center; font-size:12px; font-weight:900; color:#ff5555; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;">' + stageLabel + '</div>';
+      
+      stage.forEach(function(match) {
+        var p1 = lookupPlayer(snap, match.p1);
+        var p2 = lookupPlayer(snap, match.p2);
+        
+        var p1Name = p1 ? escapeHtml(p1.nickname) : (match.p1 ? "Игрок" : "???");
+        var p2Name = p2 ? escapeHtml(p2.nickname) : (match.p2 ? "Игрок" : "???");
+        
+        var p1Avatar = p1 ? renderAvatarHtml(p1.avatar, "sm") : '<div class="avatar sm empty">?</div>';
+        var p2Avatar = p2 ? renderAvatarHtml(p2.avatar, "sm") : '<div class="avatar sm empty">?</div>';
+        
+        var p1Winner = match.winner && match.winner === match.p1;
+        var p2Winner = match.winner && match.winner === match.p2;
+        
+        var p1Eliminated = match.winner && match.winner !== match.p1;
+        var p2Eliminated = match.winner && match.winner !== match.p2;
+        
+        var isActive = (snap.state === "vote" || snap.state === "vote_result") && snap.currentVote && snap.currentVote.pairId === match.id;
+        
+        var matchClass = "bracket-match" + (isActive ? " active" : "");
+        
+        html += '<div class="' + matchClass + '">';
+        
+        // Player 1 row
+        var p1Class = "bracket-player-row" + (p1Winner ? " winner" : "") + (p1Eliminated ? " eliminated" : "");
+        html += '<div class="' + p1Class + '">' + p1Avatar + '<span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px;">' + p1Name + '</span></div>';
+        
+        html += '<div class="bracket-vs-divider"></div>';
+        
+        // Player 2 row
+        var p2Class = "bracket-player-row" + (p2Winner ? " winner" : "") + (p2Eliminated ? " eliminated" : "");
+        html += '<div class="' + p2Class + '">' + p2Avatar + '<span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px;">' + p2Name + '</span></div>';
+        
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
   }
 
   function renderHostFinalVote(vote, snap, showResult) {
@@ -2332,6 +2446,21 @@
       html += '  </label>';
       html += '</div>';
       
+      // Quick Suggestions from previous answers
+      var prevAnswers = assignment.previousAnswers || [];
+      var suggestionsHtml = "";
+      if (prevAnswers.length > 0) {
+        suggestionsHtml += '<div style="margin-top:15px; margin-bottom:15px; text-align:left;">';
+        suggestionsHtml += '  <span style="font-size:12px; font-weight:900; text-transform:uppercase; color:#ff5555; display:block; margin-bottom:6px;">Быстрые подсказки (твои прошлые ответы):</span>';
+        suggestionsHtml += '  <div style="display:flex; gap:8px; flex-wrap:wrap;">';
+        prevAnswers.forEach(function(ans) {
+          suggestionsHtml += '    <button type="button" class="gf-suggestion-btn" data-text="' + escapeHtml(ans) + '">' + escapeHtml(ans) + '</button>';
+        });
+        suggestionsHtml += '  </div>';
+        suggestionsHtml += '</div>';
+      }
+      html += suggestionsHtml;
+      
       // Meme Input Wrapper
       html += '<div id="playerAnswerMemeWrapper" hidden>';
       // Meme templates selection
@@ -2463,6 +2592,23 @@
             if(preview) preview.textContent = bottomInput.value.toUpperCase();
           });
         }
+
+        // Suggestions click
+        var suggBtns = els.playerAnswerForm.querySelectorAll(".gf-suggestion-btn");
+        suggBtns.forEach(function(btn) {
+          btn.addEventListener("click", function() {
+            var txt = btn.getAttribute("data-text");
+            var input = id("playerAnswerInput");
+            var topInput = id("playerAnswerMemeTop");
+            
+            if (input) input.value = txt;
+            if (topInput) {
+              topInput.value = txt;
+              var previewTop = id("playerAnswerMemePreviewTop");
+              if (previewTop) previewTop.textContent = txt.toUpperCase();
+            }
+          });
+        });
       }
       wireGfInputHandlers();
       els.playerMessage.hidden = true;

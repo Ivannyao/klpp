@@ -1542,6 +1542,11 @@ function getKlppCurrentVote(room){
 
 function listKlppEligibleVoters(room, vote){
   const playerIds = listKlppPlayers(room).map(function(player){ return player.clientId; });
+  if(room.tournament && vote.isTournamentMatch){
+    return playerIds.filter(function(clientId){
+      return clientId !== vote.leftClientId && clientId !== vote.rightClientId;
+    });
+  }
   if(vote.type === "final_lash" || vote.type === "meme_round"){
     return playerIds;
   }
