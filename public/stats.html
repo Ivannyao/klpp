@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Статистика нежелательных зачатий: Живые Последствия</title>
+  <link rel="stylesheet" href="stats.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">⚠️</div>
+      <div class="logo-text">
+        <h1>ДЕМОГРАФИЧЕСКАЯ УГРОЗА</h1>
+        <p>Наглядное пособие по важности контрацепции</p>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="status-indicator" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444;">
+        <div class="status-dot" style="background-color: #ef4444; animation: pulse-dot-danger 1.8s infinite;"></div>
+        Критический уровень риска
+      </div>
+      <div class="time-badge" id="live-time">UTC: --:--:--</div>
+    </div>
+  </header>
+
+  <style>
+    @keyframes pulse-dot-danger {
+      0% { transform: scale(0.9); opacity: 0.6; }
+      50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 8px #ef4444; }
+      100% { transform: scale(0.9); opacity: 0.6; }
+    }
+  </style>
+
+  <!-- Main Container -->
+  <main>
+    
+    <!-- Title Section -->
+    <section class="intro-section" style="text-align: center; margin-bottom: 2rem;">
+      <h2>Наглядные последствия незапланированного зачатия</h2>
+      <p style="margin: 0 auto; max-width: 700px; color: var(--accent-magenta); font-weight: 600;">
+        Внимание: ниже представлены реальные фотографии человека, появившегося на свет в результате сбоя контрацепции. Посмотрите на него внимательно перед тем, как принять решение отказаться от защиты.
+      </p>
+    </section>
+
+    <!-- Interactive Data Display (Photos as the results) -->
+    <section class="charts-grid" style="grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));">
+      
+      <!-- Fig 1 Card -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">
+            <h3>Последствие №1: Специфические фото-паттерны</h3>
+            <p>Субъект в повседневной жизни</p>
+          </div>
+          <span class="chart-type-badge" style="color: var(--accent-magenta); background: rgba(236, 72, 153, 0.1); border-color: rgba(236, 72, 153, 0.2);">Экземпляр А</span>
+        </div>
+        
+        <div class="visualization-box" onclick="openLightbox('stats-assets/fig_1.jpg', 'Экземпляр А: Повседневное поведение', 'Этот парень родился только потому, что его родители решили, что «прерванный половой акт — это тоже метод». Спустя годы он вырос и теперь делает вот такие лица на фотографиях. Вы действительно хотите воспитывать такого сына?')">
+          <img src="stats-assets/fig_1.jpg" alt="Экземпляр А">
+          <div class="visualization-overlay">
+            <h4>Продукт веры в «безопасные дни»</h4>
+            <p>Нажмите для анализа личного дела</p>
+          </div>
+        </div>
+
+        <div class="chart-analysis" style="border-left-color: var(--accent-magenta);">
+          <div class="analysis-label">Анализ экспертов ГЦДИ</div>
+          <div class="analysis-text">
+            Субъект склонен делать странные селфи, имеет сомнительную прическу и регулярно задает глупые вопросы. Прямой результат пренебрежения барьерными мембранами.
+          </div>
+        </div>
+      </div>
+
+      <!-- Fig 2 Card -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">
+            <h3>Последствие №2: Ночные аномалии поведения</h3>
+            <p>Субъект в темноте пытается ориентироваться в пространстве</p>
+          </div>
+          <span class="chart-type-badge" style="color: var(--accent-magenta); background: rgba(236, 72, 153, 0.1); border-color: rgba(236, 72, 153, 0.2);">Экземпляр Б</span>
+        </div>
+        
+        <div class="visualization-box" onclick="openLightbox('stats-assets/fig_2.jpg', 'Экземпляр Б: Ночная активность', 'Субъект блуждает в темноте и совершает хаотичные движения руками. Родители вынуждены наблюдать эту картину каждую ночь вместо спокойного сна, и все это из-за одной забытой детали.')">
+          <img src="stats-assets/fig_2.jpg" alt="Экземпляр Б">
+          <div class="visualization-overlay">
+            <h4>Продукт лени сходить в аптеку ночью</h4>
+            <p>Нажмите для анализа личного дела</p>
+          </div>
+        </div>
+
+        <div class="chart-analysis pink-border">
+          <div class="analysis-label">Анализ экспертов ГЦДИ</div>
+          <div class="analysis-text">
+            Ночные прогулки субъекта в темноте мешают спать окружающим. Этого можно было избежать всего за 150 рублей в ближайшей аптеке 20 лет назад.
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Ad Banner (leads to Rickroll) -->
+    <section class="ad-banner" style="margin-top: 2rem; background: linear-gradient(135deg, #2e0817 0%, #4c0519 50%, #700220 100%); border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 30px rgba(239, 68, 68, 0.25);">
+      <div class="ad-content" style="max-width: 65%;">
+        <span class="ad-badge" style="color: #fff; background: #ef4444; border-color: #ef4444;">ЖИЗНЕННО ВАЖНО</span>
+        <h3 style="background: linear-gradient(to right, #fff, #fca5a5); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Не хотите, чтобы у вас родился такой же?</h3>
+        <p>Каждый раз, когда вам лень использовать защиту, вспоминайте это лицо. Презервативы <strong>RickGard™ Premium</strong> гарантируют защиту от подобных демографических инцидентов на 99.9%.</p>
+      </div>
+      <div class="ad-cta">
+        <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener noreferrer" class="ad-button" style="background: linear-gradient(135deg, #ef4444, #b91c1c); box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4); animation: pulse-ad-button-red 2.5s infinite;">
+          Купить защиту прямо сейчас (Скидка 100%)
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <style>
+    @keyframes pulse-ad-button-red {
+      0% { box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4); }
+      50% { box-shadow: 0 8px 30px rgba(239, 68, 68, 0.8), 0 0 15px rgba(239, 68, 68, 0.5); }
+      100% { box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4); }
+    }
+  </style>
+
+  <!-- Lightbox Modal -->
+  <div class="lightbox" id="image-lightbox">
+    <div class="lightbox-content">
+      <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+      <div class="lightbox-img-wrapper">
+        <img src="" id="lightbox-img" alt="Zoomed view">
+      </div>
+      <div class="lightbox-info">
+        <h3 id="lightbox-title">Название</h3>
+        <p id="lightbox-desc">Описание</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer style="margin-top: 4rem;">
+    <p>&copy; 2026 Программа предотвращения демографических инцидентов. Берегите нервы.</p>
+  </footer>
+
+  <!-- Script for live timestamp and Lightbox -->
+  <script>
+    // Live timestamp update
+    function updateLiveTime() {
+      const now = new Date();
+      const timeString = 'UTC: ' + 
+        String(now.getUTCHours()).padStart(2, '0') + ':' + 
+        String(now.getUTCMinutes()).padStart(2, '0') + ':' + 
+        String(now.getUTCSeconds()).padStart(2, '0');
+      document.getElementById('live-time').innerText = timeString;
+    }
+    setInterval(updateLiveTime, 1000);
+    updateLiveTime();
+
+    // Lightbox handlers
+    function openLightbox(imgSrc, title, desc) {
+      const lightbox = document.getElementById('image-lightbox');
+      const lightboxImg = document.getElementById('lightbox-img');
+      const lightboxTitle = document.getElementById('lightbox-title');
+      const lightboxDesc = document.getElementById('lightbox-desc');
+
+      lightboxImg.src = imgSrc;
+      lightboxTitle.innerText = title;
+      lightboxDesc.innerText = desc;
+      
+      lightbox.classList.add('active');
+    }
+
+    function closeLightbox() {
+      const lightbox = document.getElementById('image-lightbox');
+      lightbox.classList.remove('active');
+    }
+
+    // Close lightbox on click outside the content
+    document.getElementById('image-lightbox').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeLightbox();
+      }
+    });
+    
+    // Close lightbox on Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeLightbox();
+      }
+    });
+  </script>
+</body>
+</html>
